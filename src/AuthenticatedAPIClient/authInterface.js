@@ -1,6 +1,7 @@
 import Cookies from 'universal-cookie';
 import jwtDecode from 'jwt-decode';
 
+import parseCookieValues from './utils';
 import { logError } from '../logging';
 
 // Apply the auth-related properties and functions to the Axios API client.
@@ -43,7 +44,6 @@ export default function applyAuthInterface(httpClient, authConfig) {
     return state;
   };
 
-
   httpClient.ensurePublicOrAuthencationAndCookies = route =>
     httpClient.isRoutePublic(route) || httpClient.ensureAuthencationAndCookies(route);
 
@@ -69,12 +69,23 @@ export default function applyAuthInterface(httpClient, authConfig) {
     httpClient.authUrls.includes(url);
 
   httpClient.getDecodedAccessToken = () => {
-    const cookies = new Cookies();
     let decodedToken = null;
-    try {
-      decodedToken = jwtDecode(cookies.get(httpClient.accessTokenCookieName));
-    } catch (error) {
-      // empty
+    const currentHostname = window.location.hostname;
+    const currentEnvDomain = currentHostname.substring(currentHostname.indexOf('.') + 1);
+    const tokens = parseCookieValues(document.cookie, httpClient.accessTokenCookieName);
+    for (let i = 0; i < tokens.length; i += 1) {
+      try {
+        const jwt = jwtDecode(tokens[i]);
+        const issuerUrl = new URL(jwt.iss);
+        const issuerHostname = issuerUrl.hostname;
+        const issuerDomain = issuerHostname.substring(issuerHostname.indexOf('.') + 1);
+        if (issuerDomain === currentEnvDomain) {
+          decodedToken = jwt;
+          break;
+        }
+      } catch (error) {
+        // empty
+      }
     }
     return decodedToken;
   };
@@ -88,8 +99,8 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.ensureAuthencationAndCookies = (route = '') => {
     // Validate auth-related cookies are in a consistent state.
     const cookies = new Cookies();
-    const hasAccessToken = !!cookies.get(httpClient.accessTokenCookieName);
     const hasUserInfo = !!cookies.get(httpClient.userInfoCookieName);
+    const hasAccessToken = !!httpClient.getDecodedAccessToken();
     if (!hasAccessToken) {
       if (hasUserInfo) {
         // Cookies are out of sync. Log the user out to reset cookies and resync.
