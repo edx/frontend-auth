@@ -97,7 +97,7 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
   // Redirect to the logout page if an unauthorized API response was received.
   function handleUnauthorizedAPIResponse(error) {
     const errorStatus = error && error.response && error.response.status;
-    if (errorStatus === 401 || errorStatus === 403) {
+    if (errorStatus === 401) {
       logAPIErrorResponse(error, { errorFunctionName: 'handleUnauthorizedAPIResponse' });
       authenticatedAPIClient.logout(authenticatedAPIClient.appBaseUrl);
     }
