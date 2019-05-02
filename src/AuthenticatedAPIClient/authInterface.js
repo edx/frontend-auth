@@ -11,6 +11,7 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.csrfTokenApiPath = authConfig.csrfTokenApiPath;
   httpClient.loginUrl = authConfig.loginUrl;
   httpClient.logoutUrl = authConfig.logoutUrl;
+  httpClient.disableAccessDeniedLogout = authConfig.disableAccessDeniedLogout;
   httpClient.refreshAccessTokenEndpoint = authConfig.refreshAccessTokenEndpoint;
   /**
    * We will not try to refresh an expired access token before
