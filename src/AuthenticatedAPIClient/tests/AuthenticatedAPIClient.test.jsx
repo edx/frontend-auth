@@ -11,6 +11,7 @@ const authConfig = {
   loginUrl: process.env.LOGIN_URL,
   logoutUrl: process.env.LOGOUT_URL,
   refreshAccessTokenEndpoint: process.env.REFRESH_ACCESS_TOKEN_ENDPOINT,
+  disableAccessDeniedLogout: process.env.REFRESH_ACCESS_TOKEN_ENDPOINT,
   loggingService: NewRelicLoggingService, // any concrete logging service will do
 };
 
@@ -340,6 +341,7 @@ describe('AuthenticatedAPIClient response interceptor', () => {
   const request = { url: 'https://example.com' };
   [
     [{ response: { status: 401, data }, request, message: 'Failed' }, expectLogoutToHaveBeenCalled],
+    [{ response: { status: 403, data }, request, message: 'Failed' }, expectLogoutToHaveBeenCalled],
     [{ response: {} }, expectLogoutToNotHaveBeenCalled],
     [{ request }, expectLogoutToNotHaveBeenCalled],
     [{}, expectLogoutToNotHaveBeenCalled],
