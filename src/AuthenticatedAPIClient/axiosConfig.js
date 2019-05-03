@@ -93,16 +93,6 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
     });
   }
 
-  // Redirect to the logout page if an unauthorized API response was received.
-  function handleUnauthorizedAPIResponse(error) {
-    const errorStatus = error && error.response && error.response.status;
-    if (errorStatus === 401 || (errorStatus === 403 && !authenticatedAPIClient.disableAccessDeniedLogout)) {
-      logAPIErrorResponse(error, { errorFunctionName: 'handleUnauthorizedAPIResponse' });
-      authenticatedAPIClient.logout(authenticatedAPIClient.appBaseUrl);
-    }
-    return Promise.reject(error);
-  }
-
   // Apply Axios interceptors
   authenticatedAPIClient.interceptors.request.use(
     ensureValidJWTCookie,
@@ -111,10 +101,6 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
   authenticatedAPIClient.interceptors.request.use(
     ensureCsrfToken,
     error => Promise.reject(error),
-  );
-  authenticatedAPIClient.interceptors.response.use(
-    response => response,
-    handleUnauthorizedAPIResponse,
   );
 }
 

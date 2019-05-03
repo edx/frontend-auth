@@ -11,7 +11,6 @@ const authConfig = {
   loginUrl: process.env.LOGIN_URL,
   logoutUrl: process.env.LOGOUT_URL,
   refreshAccessTokenEndpoint: process.env.REFRESH_ACCESS_TOKEN_ENDPOINT,
-  disableAccessDeniedLogout: process.env.REFRESH_ACCESS_TOKEN_ENDPOINT,
   loggingService: NewRelicLoggingService, // any concrete logging service will do
 };
 
@@ -34,14 +33,6 @@ const mockCookies = {
 jest.genMockFromModule('universal-cookie');
 Cookies.mockImplementation(() => mockCookies);
 jest.mock('universal-cookie');
-
-function expectLogoutToHaveBeenCalled(client) {
-  expect(client.logout).toHaveBeenCalled();
-}
-
-function expectLogoutToNotHaveBeenCalled(client) {
-  expect(client.logout).not.toHaveBeenCalled();
-}
 
 function expectRefreshAccessTokenToHaveBeenCalled(client) {
   expect(client.refreshAccessToken).toHaveBeenCalled();
@@ -122,17 +113,6 @@ function testCsrfTokenInterceptorFulfillment(
         expectCsrfHeaderSet(fulfilledResult);
       }
     }
-  });
-}
-
-function testResponseInterceptorRejection(error, expects) {
-  it(`${expects.name} when error=${error}`, () => {
-    const client = getAuthenticatedAPIClient(authConfig);
-    applyMockAuthInterface(client);
-    client.interceptors.response.handlers[0].rejected(error)
-      .catch(() => {
-        expects(client);
-      });
   });
 }
 
@@ -333,26 +313,5 @@ describe('AuthenticatedAPIClient ensureCsrfToken request interceptor', () => {
       .catch((rejection) => {
         expect(rejection).toBe(error);
       });
-  });
-});
-
-describe('AuthenticatedAPIClient response interceptor', () => {
-  const data = 'Response data';
-  const request = { url: 'https://example.com' };
-  [
-    [{ response: { status: 401, data }, request, message: 'Failed' }, expectLogoutToHaveBeenCalled],
-    [{ response: { status: 403, data }, request, message: 'Failed' }, expectLogoutToHaveBeenCalled],
-    [{ response: {} }, expectLogoutToNotHaveBeenCalled],
-    [{ request }, expectLogoutToNotHaveBeenCalled],
-    [{}, expectLogoutToNotHaveBeenCalled],
-  ].forEach((mockValues) => {
-    testResponseInterceptorRejection(...mockValues);
-  });
-
-  it('returns response if it is fulfilled', () => {
-    const client = getAuthenticatedAPIClient(authConfig);
-    const response = { data: 'It worked!' };
-    const result = client.interceptors.response.handlers[0].fulfilled(response);
-    expect(result).toBe(response);
   });
 });
