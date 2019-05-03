@@ -13,6 +13,8 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.logoutUrl = authConfig.logoutUrl;
   httpClient.disableAccessDeniedLogout = authConfig.disableAccessDeniedLogout;
   httpClient.refreshAccessTokenEndpoint = authConfig.refreshAccessTokenEndpoint;
+  httpClient.handleRefreshAccessTokenFailure = authConfig.handleRefreshAccessTokenFailure;
+
   /**
    * We will not try to refresh an expired access token before
    * making requests to these auth-related URLs.

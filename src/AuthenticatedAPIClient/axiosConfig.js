@@ -78,10 +78,11 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
           queueRequests = false;
           PubSub.publishSync(ACCESS_TOKEN_REFRESH);
         })
-        .catch(() => {
-          // TODO: We should give the client app an opportunity to
-          // take control here before logout/redirect to sign in.
-          authenticatedAPIClient.logout();
+        .catch((error) => {
+          if (!authenticatedAPIClient.handleRefreshAccessTokenFailure
+            || authenticatedAPIClient.handleRefreshAccessTokenFailure(error)) {
+            authenticatedAPIClient.logout();
+          }
         });
     }
 
@@ -94,13 +95,20 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
     });
   }
 
-  // Redirect to the logout page if an unauthorized API response was received.
+  // Log errors and info for unauthorized API responses
   function handleUnauthorizedAPIResponse(error) {
-    const errorStatus = error && error.response && error.response.status;
-    if (errorStatus === 401 || (errorStatus === 403 && !authenticatedAPIClient.disableAccessDeniedLogout)) {
+    const response = error && error.response;
+    const errorStatus = response && response.status;
+    const requestUrl = response && response.config && response.config.url;
+    const requestIsTokenRefresh = requestUrl === authenticatedAPIClient.refreshAccessTokenEndpoint;
+
+    if (errorStatus === 401 && !requestIsTokenRefresh) {
       logAPIErrorResponse(error, { errorFunctionName: 'handleUnauthorizedAPIResponse' });
-      authenticatedAPIClient.logout(authenticatedAPIClient.appBaseUrl);
     }
+    if (errorStatus === 403) {
+      logInfo(`Forbidden API response from ${requestUrl}`);
+    }
+
     return Promise.reject(error);
   }
 
