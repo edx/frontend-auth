@@ -128,7 +128,7 @@ function testResponseInterceptorRejection(error, expects) {
   it(`${expects.name} when error=${error}`, () => {
     const client = getAuthenticatedAPIClient(authConfig);
     applyMockAuthInterface(client);
-    return client.interceptors.response.handlers[0].rejected(error)
+    client.interceptors.response.handlers[0].rejected(error)
       .catch(() => {
         expects(client);
       });
@@ -310,46 +310,6 @@ describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () =
         expect(rejection).toBe(error);
       });
   });
-
-  it('redirects if a login refresh fails', () => {
-    const client = getAuthenticatedAPIClient({
-      ...authConfig,
-      // handleRefreshAccessTokenFailure: jest.fn(),
-    });
-    const rejectRefreshAccessToken = true;
-    applyMockAuthInterface(client, rejectRefreshAccessToken);
-    client.isAuthUrl.mockReturnValue(true);
-    client.getDecodedAccessToken.mockReturnValue({});
-    client.isAccessTokenExpired.mockReturnValue(true);
-    // eslint-disable-next-line no-underscore-dangle
-    axiosConfig.__Rewire__('queueRequests', false);
-    const failedResult = client.interceptors.request.handlers[0].fulfilled({});
-
-    failedResult.catch(() => {
-      expect(client.logout).toHaveBeenCalled();
-    });
-  });
-
-  it('does not redirect if a login refresh failure handler is supplied', () => {
-    const client = getAuthenticatedAPIClient({
-      ...authConfig,
-      handleRefreshAccessTokenFailure: jest.fn(),
-    });
-    const rejectRefreshAccessToken = true;
-    applyMockAuthInterface(client, rejectRefreshAccessToken);
-    client.isAuthUrl.mockReturnValue(true);
-    client.getDecodedAccessToken.mockReturnValue({});
-    client.isAccessTokenExpired.mockReturnValue(true);
-    // eslint-disable-next-line no-underscore-dangle
-    axiosConfig.__Rewire__('queueRequests', false);
-    const failedResult = client.interceptors.request.handlers[0].fulfilled({});
-
-    failedResult.catch(() => {
-      expect(client.logout).toHaveBeenCalled();
-    });
-  });
-
-
 });
 
 describe('AuthenticatedAPIClient ensureCsrfToken request interceptor', () => {
@@ -378,9 +338,8 @@ describe('AuthenticatedAPIClient ensureCsrfToken request interceptor', () => {
 describe('AuthenticatedAPIClient response interceptor', () => {
   const data = 'Response data';
   const request = { url: 'https://example.com' };
-  const accessTokenRefreshRequest = { url: authConfig.refreshAccessTokenEndpoint };
   [
-    [{ response: { status: 401, data }, request, message: 'Failed' }, expectLogoutToNotHaveBeenCalled],
+    [{ response: { status: 401, data }, request, message: 'Failed' }, expectLogoutToHaveBeenCalled],
     [{ response: {} }, expectLogoutToNotHaveBeenCalled],
     [{ request }, expectLogoutToNotHaveBeenCalled],
     [{}, expectLogoutToNotHaveBeenCalled],
@@ -388,32 +347,9 @@ describe('AuthenticatedAPIClient response interceptor', () => {
     testResponseInterceptorRejection(...mockValues);
   });
 
-  // it('redirects to login if a token refresh fails', () => {
-  //   const client = getAuthenticatedAPIClient(authConfig);
-  //   const reponse = {
-  //     response: { status: 401, data },
-  //     request: { url: refreshAccessTokenEndpoint },
-  //   };
-  //   const response = { data: 'It worked!' };
-  //   const result = client.interceptors.response.handlers[0].fulfilled(response);
-  //   expect(result).toBe(response);
-  // });
-
-  // const clientA = getAuthenticatedAPIClient(authConfig);
-  // applyMockAuthInterface(clientA);
-  // expectLogoutToNotHaveBeenCalled(client);
-  // client.logout();
-  // expectLogoutToHaveBeenCalled(client);
-
   it('returns response if it is fulfilled', () => {
     const client = getAuthenticatedAPIClient(authConfig);
     const response = { data: 'It worked!' };
-    const result = client.interceptors.response.handlers[0].fulfilled(response);
-    expect(result).toBe(response);
-  });
-  it('returns response if it is rejected', () => {
-    const client = getAuthenticatedAPIClient(authConfig);
-    const response = { response: { status: 401, data }, request, message: 'Failed' };
     const result = client.interceptors.response.handlers[0].fulfilled(response);
     expect(result).toBe(response);
   });
