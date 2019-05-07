@@ -70,6 +70,7 @@ function testJwtCookieInterceptorFulfillment(
   rejectRefreshAccessToken,
   expects,
 ) {
+  // eslint-disable-next-line consistent-return
   it(`${expects.name} when isAuthUrl=${isAuthUrl} mockAccessToken=${mockAccessToken} isAccessTokenExpired=${isAccessTokenExpired}`, () => {
     const client = getAuthenticatedAPIClient(authConfig);
     applyMockAuthInterface(client, rejectRefreshAccessToken);
@@ -82,9 +83,12 @@ function testJwtCookieInterceptorFulfillment(
     expects(client);
 
     if (rejectRefreshAccessToken) {
-      fulfilledResult.catch(() => {
+      return fulfilledResult.catch(() => {
         expect(client.logout).toHaveBeenCalled();
       });
+    } else { // eslint-disable-line no-else-return
+      expect(client.logout).not.toHaveBeenCalled();
+      expect(fulfilledResult).toBeInstanceOf(Object); // from above: fullfilled({})
     }
   });
 }

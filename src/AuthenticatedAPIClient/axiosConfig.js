@@ -76,21 +76,25 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
       authenticatedAPIClient.refreshAccessToken()
         .then(() => {
           queueRequests = false;
-          PubSub.publishSync(ACCESS_TOKEN_REFRESH);
+          PubSub.publishSync(ACCESS_TOKEN_REFRESH, { success: true });
         })
         .catch((error) => {
           if (!authenticatedAPIClient.handleRefreshAccessTokenFailure
             || authenticatedAPIClient.handleRefreshAccessTokenFailure(error)) {
             authenticatedAPIClient.logout();
           }
+          PubSub.publishSync(ACCESS_TOKEN_REFRESH, { success: false });
         });
     }
 
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       logInfo(`Queuing API request ${originalRequest.url} while access token is refreshed`);
-      PubSub.subscribeOnce(ACCESS_TOKEN_REFRESH, () => {
-        logInfo(`Resolving queued API request ${originalRequest.url}`);
-        resolve(originalRequest);
+      PubSub.subscribeOnce(ACCESS_TOKEN_REFRESH, (msg, { success }) => {
+        if (success) {
+          logInfo(`Resolving queued API request ${originalRequest.url}`);
+          resolve(originalRequest);
+        }
+        reject(originalRequest);
       });
     });
   }
