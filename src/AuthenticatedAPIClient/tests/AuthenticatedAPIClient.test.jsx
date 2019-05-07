@@ -1,3 +1,4 @@
+import PubSub from 'pubsub-js';
 import Cookies from 'universal-cookie';
 import { NewRelicLoggingService } from '@edx/frontend-logging';
 
@@ -33,14 +34,6 @@ const mockCookies = {
 jest.genMockFromModule('universal-cookie');
 Cookies.mockImplementation(() => mockCookies);
 jest.mock('universal-cookie');
-
-function expectLogoutToHaveBeenCalled(client) {
-  expect(client.logout).toHaveBeenCalled();
-}
-
-function expectLogoutToNotHaveBeenCalled(client) {
-  expect(client.logout).not.toHaveBeenCalled();
-}
 
 function expectRefreshAccessTokenToHaveBeenCalled(client) {
   expect(client.refreshAccessToken).toHaveBeenCalled();
@@ -125,17 +118,6 @@ function testCsrfTokenInterceptorFulfillment(
         expectCsrfHeaderSet(fulfilledResult);
       }
     }
-  });
-}
-
-function testResponseInterceptorRejection(error, expects) {
-  it(`${expects.name} when error=${error}`, () => {
-    const client = getAuthenticatedAPIClient(authConfig);
-    applyMockAuthInterface(client);
-    client.interceptors.response.handlers[0].rejected(error)
-      .catch(() => {
-        expects(client);
-      });
   });
 }
 
@@ -287,6 +269,10 @@ describe('AuthenticatedAPIClient request headers', () => {
 });
 
 describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () => {
+  beforeEach(() => {
+    PubSub.clearAllSubscriptions();
+  });
+
   [
     /*
     isAuthUrl, mockAccessToken, isAccessTokenExpired, queueRequests,
@@ -374,17 +360,6 @@ describe('AuthenticatedAPIClient ensureCsrfToken request interceptor', () => {
 });
 
 describe('AuthenticatedAPIClient response interceptor', () => {
-  const data = 'Response data';
-  const request = { url: 'https://example.com' };
-  [
-    [{ response: { status: 401, data }, request, message: 'Failed' }, expectLogoutToHaveBeenCalled],
-    [{ response: {} }, expectLogoutToNotHaveBeenCalled],
-    [{ request }, expectLogoutToNotHaveBeenCalled],
-    [{}, expectLogoutToNotHaveBeenCalled],
-  ].forEach((mockValues) => {
-    testResponseInterceptorRejection(...mockValues);
-  });
-
   it('returns response if it is fulfilled', () => {
     const client = getAuthenticatedAPIClient(authConfig);
     const response = { data: 'It worked!' };
