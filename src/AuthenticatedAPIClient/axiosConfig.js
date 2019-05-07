@@ -79,6 +79,9 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
           PubSub.publishSync(ACCESS_TOKEN_REFRESH, { success: true });
         })
         .catch((error) => {
+          // If no callback is supplied frontend-auth will (ultimately) redirect the user to login.
+          // The user is redirected to logout to ensure authentication clean-up, which in turn
+          // redirects to login.
           if (authenticatedAPIClient.handleRefreshAccessTokenFailure) {
             authenticatedAPIClient.handleRefreshAccessTokenFailure(error);
           } else {
@@ -108,10 +111,10 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
     const requestUrl = response && response.config && response.config.url;
     const requestIsTokenRefresh = requestUrl === authenticatedAPIClient.refreshAccessTokenEndpoint;
 
-    switch (errorStatus) {
+    switch (errorStatus) { // eslint-disable-line default-case
       case 401:
         if (requestIsTokenRefresh) {
-          logInfo(`Unauthorized token refresh response from ${requestUrl}`);
+          logInfo(`Unauthorized token refresh response from ${requestUrl}. This is expected if the user is not yet logged in.`);
         } else {
           logInfo(`Unauthorized API response from ${requestUrl}`);
         }
@@ -119,7 +122,6 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
       case 403:
         logInfo(`Forbidden API response from ${requestUrl}`);
         break;
-      default:
     }
 
     return Promise.reject(error);
