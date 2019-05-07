@@ -360,6 +360,36 @@ describe('AuthenticatedAPIClient ensureCsrfToken request interceptor', () => {
 });
 
 describe('AuthenticatedAPIClient response interceptor', () => {
+  it('returns error if it fails with 401', () => {
+    const client = getAuthenticatedAPIClient(authConfig);
+    const errorResponse = { response: { status: 401, data: 'it failed' } };
+    client.interceptors.response.handlers[0].rejected(errorResponse)
+      .catch((promiseError) => {
+        expect(promiseError).toBe(errorResponse);
+      });
+  });
+  it('returns error if token refresh fails with 401', () => {
+    const client = getAuthenticatedAPIClient(authConfig);
+    const errorResponse = {
+      response: {
+        status: 401,
+        data: 'it failed',
+        config: { url: authConfig.refreshAccessTokenEndpoint },
+      },
+    };
+    client.interceptors.response.handlers[0].rejected(errorResponse)
+      .catch((promiseError) => {
+        expect(promiseError).toBe(errorResponse);
+      });
+  });
+  it('returns error if it fails with 403', () => {
+    const client = getAuthenticatedAPIClient(authConfig);
+    const errorResponse = { response: { status: 403, data: 'it failed' } };
+    client.interceptors.response.handlers[0].rejected(errorResponse)
+      .catch((promiseError) => {
+        expect(promiseError).toBe(errorResponse);
+      });
+  });
   it('returns response if it is fulfilled', () => {
     const client = getAuthenticatedAPIClient(authConfig);
     const response = { data: 'It worked!' };
