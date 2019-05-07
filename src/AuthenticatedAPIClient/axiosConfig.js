@@ -1,6 +1,6 @@
 import PubSub from 'pubsub-js';
 import Url from 'url-parse';
-import { logAPIErrorResponse, logInfo } from '@edx/frontend-logging';
+import { logInfo } from '@edx/frontend-logging';
 
 const ACCESS_TOKEN_REFRESH = 'ACCESS_TOKEN_REFRESH';
 const CSRF_TOKEN_REFRESH = 'CSRF_TOKEN_REFRESH';
@@ -79,8 +79,9 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
           PubSub.publishSync(ACCESS_TOKEN_REFRESH, { success: true });
         })
         .catch((error) => {
-          if (!authenticatedAPIClient.handleRefreshAccessTokenFailure
-            || authenticatedAPIClient.handleRefreshAccessTokenFailure(error)) {
+          if (authenticatedAPIClient.handleRefreshAccessTokenFailure) {
+            authenticatedAPIClient.handleRefreshAccessTokenFailure(error);
+          } else {
             authenticatedAPIClient.logout();
           }
           PubSub.publishSync(ACCESS_TOKEN_REFRESH, { success: false });
@@ -93,8 +94,9 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
         if (success) {
           logInfo(`Resolving queued API request ${originalRequest.url}`);
           resolve(originalRequest);
+        } else {
+          reject(originalRequest);
         }
-        reject(originalRequest);
       });
     });
   }
@@ -106,11 +108,18 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
     const requestUrl = response && response.config && response.config.url;
     const requestIsTokenRefresh = requestUrl === authenticatedAPIClient.refreshAccessTokenEndpoint;
 
-    if (errorStatus === 401 && !requestIsTokenRefresh) {
-      logAPIErrorResponse(error, { errorFunctionName: 'handleUnauthorizedAPIResponse' });
-    }
-    if (errorStatus === 403) {
-      logInfo(`Forbidden API response from ${requestUrl}`);
+    switch (errorStatus) {
+      case 401:
+        if (requestIsTokenRefresh) {
+          logInfo(`Unauthorized token refresh response from ${requestUrl}`);
+        } else {
+          logInfo(`Unauthorized API response from ${requestUrl}`);
+        }
+        break;
+      case 403:
+        logInfo(`Forbidden API response from ${requestUrl}`);
+        break;
+      default:
     }
 
     return Promise.reject(error);

@@ -314,6 +314,40 @@ describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () =
         expect(rejection).toBe(error);
       });
   });
+
+  it('redirects to logout if a token refresh fails', () => {
+    const rejectRefreshAccessToken = true;
+    const client = getAuthenticatedAPIClient(authConfig);
+    applyMockAuthInterface(client, rejectRefreshAccessToken);
+    client.isAuthUrl.mockReturnValue(false);
+    client.getDecodedAccessToken.mockReturnValue({});
+    client.isAccessTokenExpired.mockReturnValue(true);
+    // eslint-disable-next-line no-underscore-dangle
+    axiosConfig.__Rewire__('queueRequests', false);
+    const fulfilledResult = client.interceptors.request.handlers[0].fulfilled({});
+    return fulfilledResult.catch(() => {
+      expect(client.logout).toHaveBeenCalled();
+    });
+  });
+
+  it('executes the handleRefreshAccessTokenFailure instead of logout if a token refresh fails', () => {
+    const rejectRefreshAccessToken = true;
+    const client = getAuthenticatedAPIClient(authConfig);
+    client.handleRefreshAccessTokenFailure = jest.fn();
+    applyMockAuthInterface(client, rejectRefreshAccessToken);
+    client.isAuthUrl.mockReturnValue(false);
+    client.getDecodedAccessToken.mockReturnValue({});
+    client.isAccessTokenExpired.mockReturnValue(true);
+    // eslint-disable-next-line no-underscore-dangle
+    axiosConfig.__Rewire__('queueRequests', false);
+    const fulfilledResult = client.interceptors.request.handlers[0].fulfilled({});
+
+    return fulfilledResult.catch(() => {
+      expect(client.logout).not.toHaveBeenCalled();
+      expect(client.handleRefreshAccessTokenFailure).toHaveBeenCalled();
+      delete client.handleRefreshAccessTokenFailure;
+    });
+  });
 });
 
 describe('AuthenticatedAPIClient ensureCsrfToken request interceptor', () => {
