@@ -29,6 +29,12 @@ export default function applyAuthInterface(httpClient, authConfig) {
     httpClient.refreshAccessTokenEndpoint,
   ];
 
+  /**
+   * IMPORTANT: Do not use this function outside of frontend-auth.
+   * In certain cases, the token might expire between when frontend-auth
+   * authenticated and this call is made. Instead, use the token returned
+   * by the callback.
+   */
   httpClient.getAuthenticationState = () => {
     const state = {};
 
