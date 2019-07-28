@@ -13,6 +13,7 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.logoutUrl = authConfig.logoutUrl;
   httpClient.refreshAccessTokenEndpoint = authConfig.refreshAccessTokenEndpoint;
   httpClient.handleRefreshAccessTokenFailure = authConfig.handleRefreshAccessTokenFailure;
+  httpClient.loggingService = authConfig.loggingService;
 
   /**
    * We will not try to refresh an expired access token before
@@ -82,7 +83,10 @@ export default function applyAuthInterface(httpClient, authConfig) {
     try {
       decodedToken = jwtDecode(cookies.get(httpClient.accessTokenCookieName));
     } catch (error) {
-      // empty
+      /* istanbul ignore next */
+      if (httpClient.loggingService && httpClient.loggingService.logError) {
+        httpClient.loggingService.logError(error);
+      }
     }
     return decodedToken;
   };
@@ -101,8 +105,35 @@ export default function applyAuthInterface(httpClient, authConfig) {
       // Attempt to refresh the JWT cookies.
       return httpClient.refreshAccessToken()
         // Successfully refreshed the JWT cookies, fire the callback function.
-        .then(() => {
-          callback(httpClient.getDecodedAccessToken());
+        .then((response) => {
+          const refreshedAccessToken = httpClient.getDecodedAccessToken();
+
+          /* istanbul ignore next */
+          if (refreshedAccessToken === null) {
+            // This is the success block for refreshing an access token.
+            // Sometimes the access token is null for an unknown reason.
+            // Log here to learn more.
+            if (httpClient.loggingService && httpClient.loggingService.logError) {
+              httpClient.loggingService.logError(
+                new Error('Access token is null after refresh.'),
+                {
+                  previousAccessToken: accessToken,
+                  axiosResponse: response,
+                },
+              );
+
+              // Wait 50ms and check again. Maybe we're in a race to set the cookie?
+              setTimeout(() => {
+                const checkAccessToken = httpClient.getDecodedAccessToken();
+                if (checkAccessToken !== null) {
+                  const unexpectedTokenError = new Error('Access token was null after refresh and now is not 50ms later');
+                  httpClient.loggingService.logError(unexpectedTokenError);
+                }
+              }, 50);
+            }
+          }
+
+          callback(refreshedAccessToken);
         })
         .catch(() => {
           // The user is not authenticated, send them to the login page.
