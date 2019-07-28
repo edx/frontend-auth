@@ -84,8 +84,8 @@ export default function applyAuthInterface(httpClient, authConfig) {
       decodedToken = jwtDecode(cookies.get(httpClient.accessTokenCookieName));
     } catch (error) {
       /* istanbul ignore next */
-      if (httpClient.loggingService && httpClient.loggingService.logError) {
-        httpClient.loggingService.logError(error);
+      if (httpClient.loggingService && httpClient.loggingService.logInfo) {
+        httpClient.loggingService.logInfo('Error decoding JWT token.', { jwtDecodeError: error });
       }
     }
     return decodedToken;
@@ -122,17 +122,29 @@ export default function applyAuthInterface(httpClient, authConfig) {
                 },
               );
 
-              // Wait 50ms and check again. Maybe we're in a race to set the cookie?
-              setTimeout(() => {
-                const checkAccessToken = httpClient.getDecodedAccessToken();
-                if (checkAccessToken !== null) {
-                  const unexpectedTokenError = new Error('Access token was null after refresh and now is not 50ms later');
-                  httpClient.loggingService.logError(unexpectedTokenError);
-                }
-              }, 50);
+              // Wait some time and check again. Maybe we're in a race to set the cookie?
+
+              const checkForAccessTokenAfterDelay = (delay) => {
+                setTimeout(() => {
+                  const delayedRefreshAccessToken = httpClient.getDecodedAccessToken();
+                  httpClient.loggingService.logInfo(
+                    `Access token check after ${delay}ms after null refresh token: ${delayedRefreshAccessToken !== null}`,
+                    {
+                      delayedRefreshAccessTokenIsNotNull: delayedRefreshAccessToken !== null,
+                      delayedRefreshAccessToken,
+                      refreshedAccessToken,
+                      accessToken,
+                    },
+                  );
+                }, delay);
+              };
+
+              checkForAccessTokenAfterDelay(50);
+              checkForAccessTokenAfterDelay(500);
             }
           }
 
+          // TODO: Determine what to do in the case that the token is still null.
           callback(refreshedAccessToken);
         })
         .catch(() => {
