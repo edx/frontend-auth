@@ -80,14 +80,26 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.getDecodedAccessToken = () => {
     const cookies = new Cookies();
     let decodedToken = null;
+    /* istanbul ignore next */
     try {
-      decodedToken = jwtDecode(cookies.get(httpClient.accessTokenCookieName));
-    } catch (error) {
-      /* istanbul ignore next */
-      if (httpClient.loggingService && httpClient.loggingService.logInfo) {
-        httpClient.loggingService.logInfo('Error decoding JWT token.', { jwtDecodeError: error });
+      const cookieValue = cookies.get(httpClient.accessTokenCookieName);
+      try {
+        decodedToken = jwtDecode(cookieValue);
+      } catch (error) {
+        if (httpClient.loggingService && httpClient.loggingService.logInfo) {
+          httpClient.loggingService.logInfo(
+            'Error decoding JWT token.',
+            {
+              jwtDecodeError: error,
+              cookieValue,
+            },
+          );
+        }
       }
+    } catch (error) {
+      httpClient.loggingService.logInfo(`Error reading the cookie: ${httpClient.accessTokenCookieName}.`);
     }
+
     return decodedToken;
   };
 
@@ -122,8 +134,8 @@ export default function applyAuthInterface(httpClient, authConfig) {
                 },
               );
 
-              // Wait some time and check again. Maybe we're in a race to set the cookie?
-
+              // Wait some time and check again.
+              // Maybe we're in a race to set the cookie?
               const checkForAccessTokenAfterDelay = (delay) => {
                 setTimeout(() => {
                   const delayedRefreshAccessToken = httpClient.getDecodedAccessToken();
