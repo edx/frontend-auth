@@ -46,7 +46,7 @@
     "babel-preset-env": "1.7.0",
     "babel-preset-react": "6.24.1",
     "babel-runtime": "6.26.0",
-    "coveralls": "3.0.2",
+    "coveralls": "3.0.7",
     "enzyme": "3.8.0",
     "enzyme-adapter-react-16": "1.8.0",
     "es-check": "5.0.0",
