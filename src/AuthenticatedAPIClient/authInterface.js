@@ -55,47 +55,31 @@ export default function applyAuthInterface(httpClient, authConfig) {
    * @param route: used to return user after login when not authenticated.
    * @returns Promise that resolves to { authenticatedUser: {...}, decodedAccessToken: {...}}
    */
-  httpClient.ensureAuthenticatedUser = route =>
-    new Promise((resolve, reject) => {
-      // Validate auth-related cookies are in a consistent state.
-      const accessToken = httpClient.getDecodedAccessToken();
-      const tokenExpired = httpClient.isAccessTokenExpired(accessToken);
-      if (tokenExpired) {
-        // Attempt to refresh the JWT cookies.
-        httpClient
-          .refreshAccessToken()
-          // Successfully refreshed the JWT cookies
-          .then((response) => {
-            const refreshedAccessToken = httpClient.getDecodedAccessToken();
+  httpClient.ensureAuthenticatedUser = route => httpClient
+    .refreshAccessTokenOnce()
+    .then((response) => {
+      const refreshedAccessToken = httpClient.getDecodedAccessToken();
 
-            if (refreshedAccessToken === null) {
-              // This should never happen, but it does. See ARCH-948 for past research into why.
-              const errorMessage = 'Access token is null after supposedly successful refresh.';
-              httpClient.loggingService.logError(`frontend-auth: ${errorMessage}`, {
-                previousAccessToken: accessToken,
-                axiosResponse: response,
-              });
-              reject(new Error(errorMessage));
-              return;
-            }
-
-            resolve(formatAuthenticatedResponse(refreshedAccessToken));
-          })
-          .catch(() => {
-            const isRedirectFromLoginPage = global.document.referrer &&
-              global.document.referrer.startsWith(httpClient.loginUrl);
-            if (isRedirectFromLoginPage) {
-              reject(new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.'));
-              return;
-            }
-
-            // The user is not authenticated, send them to the login page.
-            httpClient.login(httpClient.appBaseUrl + route);
-          });
-      } else {
-        // We already have valid JWT cookies
-        resolve(formatAuthenticatedResponse(accessToken));
+      if (refreshedAccessToken === null) {
+        // This should never happen, but it does. See ARCH-948 for past research into why.
+        const errorMessage = 'Access token is null after supposedly successful refresh.';
+        httpClient.loggingService.logError(`frontend-auth: ${errorMessage}`, {
+          axiosResponse: response,
+        });
+        throw new Error(errorMessage);
       }
+
+      return formatAuthenticatedResponse(refreshedAccessToken);
+    })
+    .catch(() => {
+      const isRedirectFromLoginPage = global.document.referrer &&
+      global.document.referrer.startsWith(httpClient.loginUrl);
+      if (isRedirectFromLoginPage) {
+        throw new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.');
+      }
+
+      // The user is not authenticated, send them to the login page.
+      httpClient.login(httpClient.appBaseUrl + route);
     });
 
   // JWT expiration is serialized as seconds since the epoch,
@@ -111,6 +95,26 @@ export default function applyAuthInterface(httpClient, authConfig) {
   };
 
   httpClient.refreshAccessToken = () => httpClient.post(httpClient.refreshAccessTokenEndpoint);
+
+  httpClient.refreshAccessTokenPromise = null;
+
+  httpClient.refreshAccessTokenOnce = () => {
+    if (!httpClient.isAccessTokenExpired(httpClient.getDecodedAccessToken())) {
+      // The token is valid. Carry on.
+      return Promise.resolve();
+    }
+
+    if (httpClient.refreshAccessTokenPromise === null) {
+      // No token refresh request is in-flight. Make the request.
+      httpClient.refreshAccessTokenPromise = httpClient
+        .refreshAccessToken()
+        .finally(() => {
+          httpClient.refreshAccessTokenPromise = null;
+        });
+    }
+
+    return httpClient.refreshAccessTokenPromise;
+  };
 
   httpClient.isAuthUrl = url => httpClient.authUrls.includes(url);
 

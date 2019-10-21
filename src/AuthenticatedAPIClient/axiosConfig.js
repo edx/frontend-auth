@@ -2,7 +2,6 @@ import PubSub from 'pubsub-js';
 import Url from 'url-parse';
 import { logInfo } from '@edx/frontend-logging';
 
-const ACCESS_TOKEN_REFRESH = 'ACCESS_TOKEN_REFRESH';
 const CSRF_TOKEN_REFRESH = 'CSRF_TOKEN_REFRESH';
 const CSRF_HEADER_NAME = 'X-CSRFToken';
 const CSRF_PROTECTED_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
@@ -57,51 +56,13 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
     return request;
   }
 
-  /**
-   * Ensure the browser has an unexpired JWT cookie before making API requests.
-   *
-   * This will attempt to refresh the JWT cookie if a valid refresh token cookie exists.
-   */
-  function ensureValidJWTCookie(request) {
-    const originalRequest = request;
-    const isAuthUrl = authenticatedAPIClient.isAuthUrl(originalRequest.url);
-    const accessToken = authenticatedAPIClient.getDecodedAccessToken();
-    const tokenExpired = authenticatedAPIClient.isAccessTokenExpired(accessToken);
-    if (isAuthUrl || !tokenExpired) {
-      return request;
+  function ensureValidJWTCookie(requestConfig) {
+    // if we've got what we need
+    if (authenticatedAPIClient.isAuthUrl(requestConfig.url)) {
+      return requestConfig;
     }
 
-    if (!queueRequests) {
-      queueRequests = true;
-      authenticatedAPIClient.refreshAccessToken()
-        .then(() => {
-          queueRequests = false;
-          PubSub.publishSync(ACCESS_TOKEN_REFRESH, { success: true });
-        })
-        .catch((error) => {
-          // If no callback is supplied frontend-auth will (ultimately) redirect the user to login.
-          // The user is redirected to logout to ensure authentication clean-up, which in turn
-          // redirects to login.
-          if (authenticatedAPIClient.handleRefreshAccessTokenFailure) {
-            authenticatedAPIClient.handleRefreshAccessTokenFailure(error);
-          } else {
-            authenticatedAPIClient.logout();
-          }
-          PubSub.publishSync(ACCESS_TOKEN_REFRESH, { success: false });
-        });
-    }
-
-    return new Promise((resolve, reject) => {
-      logInfo(`Queuing API request ${originalRequest.url} while access token is refreshed`);
-      PubSub.subscribeOnce(ACCESS_TOKEN_REFRESH, (msg, { success }) => {
-        if (success) {
-          logInfo(`Resolving queued API request ${originalRequest.url}`);
-          resolve(originalRequest);
-        } else {
-          reject(originalRequest);
-        }
-      });
-    });
+    return authenticatedAPIClient.refreshAccessTokenOnce().then(() => requestConfig);
   }
 
   // Log errors and info for unauthorized API responses
