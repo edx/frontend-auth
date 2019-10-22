@@ -73,7 +73,8 @@ export default function applyAuthInterface(httpClient, authConfig) {
     })
     .catch(() => {
       const isRedirectFromLoginPage = global.document.referrer &&
-      global.document.referrer.startsWith(httpClient.loginUrl);
+        global.document.referrer.startsWith(httpClient.loginUrl);
+
       if (isRedirectFromLoginPage) {
         throw new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.');
       }
@@ -98,9 +99,10 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.refreshAccessTokenPromise = null;
 
   httpClient.refreshAccessTokenOnce = () => {
-    if (!httpClient.isAccessTokenExpired(httpClient.getDecodedAccessToken())) {
+    const decodedAccessToken = httpClient.getDecodedAccessToken();
+    if (!httpClient.isAccessTokenExpired(decodedAccessToken)) {
       // The token is valid. Carry on.
-      return Promise.resolve(httpClient.getDecodedAccessToken());
+      return Promise.resolve(decodedAccessToken);
     }
 
     if (httpClient.refreshAccessTokenPromise === null) {

@@ -56,13 +56,13 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
     return request;
   }
 
-  function ensureValidJWTCookie(requestConfig) {
-    // if we've got what we need
-    if (authenticatedAPIClient.isAuthUrl(requestConfig.url)) {
-      return requestConfig;
+  function ensureValidJWTCookie(axiosRequestConfig) {
+    const jwtIsNotRequired = authenticatedAPIClient.isAuthUrl(axiosRequestConfig.url);
+    if (jwtIsNotRequired) {
+      return axiosRequestConfig;
     }
 
-    return authenticatedAPIClient.refreshAccessTokenOnce().then(() => requestConfig);
+    return authenticatedAPIClient.refreshAccessTokenOnce().then(() => axiosRequestConfig);
   }
 
   // Log errors and info for unauthorized API responses
