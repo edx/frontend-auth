@@ -99,6 +99,9 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.refreshAccessTokenPromise = null;
 
   httpClient.refreshAccessTokenOnce = () => {
+    // We have found that results from multiple calls to getDecodedAccessToken
+    // may change between calls. We should reduce calls to getDecodedAccessToken
+    // as much as possible.
     const decodedAccessToken = httpClient.getDecodedAccessToken();
     if (!httpClient.isAccessTokenExpired(decodedAccessToken)) {
       // The token is valid. Carry on.
