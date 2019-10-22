@@ -86,7 +86,11 @@ function testJwtCookieInterceptorFulfillment(
     client.getDecodedAccessToken.mockReturnValue(mockAccessToken);
     client.isAccessTokenExpired.mockReturnValue(isAccessTokenExpired);
     // eslint-disable-next-line no-underscore-dangle
-    axiosConfig.__Rewire__('queueRequests', queueRequests);
+    if (queueRequests) {
+      client.refreshAccessTokenPromise = new Promise(() => {});
+    } else {
+      client.refreshAccessTokenPromise = null;
+    }
     const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
     expects(client);
 
@@ -234,8 +238,9 @@ describe('AuthenticatedAPIClient auth interface', () => {
       client.refreshAccessToken.mockReturnValueOnce(new Promise((resolve, reject) => {
         reject({ message: 'Failed!' }); // eslint-disable-line prefer-promise-reject-errors
       }));
-      client.ensureAuthenticatedUser('');
-      expect(window.location.assign).toHaveBeenCalledWith(expectedLocation);
+      return client.ensureAuthenticatedUser('').finally(() => {
+        expect(window.location.assign).toHaveBeenCalledWith(expectedLocation);
+      });
     });
 
     it('errors when no valid JWT after coming from login', async () => {
@@ -252,14 +257,14 @@ describe('AuthenticatedAPIClient auth interface', () => {
     });
 
     it('promise resolves to access token when valid JWT', async () => {
-      mockCookies.get.mockReturnValueOnce(encodedValidJwt);
+      mockCookies.get.mockReturnValue(encodedValidJwt);
       const { authenticatedUser, decodedAccessToken } = await client.ensureAuthenticatedUser('');
 
       expectEnsureSuccessfulAuthenticatedUserResponse(authenticatedUser, decodedAccessToken);
     });
 
     it('promise resolves to access token with roles when valid JWT', async () => {
-      mockCookies.get.mockReturnValueOnce(encodedValidJwtWithRoles);
+      mockCookies.get.mockReturnValue(encodedValidJwtWithRoles);
       const { authenticatedUser, decodedAccessToken } = await client.ensureAuthenticatedUser('');
 
       expectEnsureSuccessfulAuthenticatedUserResponse(authenticatedUser, decodedAccessToken, validJwtWithRoles);
@@ -280,7 +285,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
       expectEnsureSuccessfulAuthenticatedUserResponse(authenticatedUser, decodedAccessToken);
     });
 
-    it('logs and throws error if refresh access token does not properly set cookie', async () => {
+    it('logs and redirect if refresh access token does not properly set cookie', async () => {
       client.loggingService.logError = jest.fn();
       client.getDecodedAccessToken = jest.fn();
       client.getDecodedAccessToken.mockReturnValue(null);
@@ -289,9 +294,9 @@ describe('AuthenticatedAPIClient auth interface', () => {
         resolve();
       }));
 
-      await expect(client.ensureAuthenticatedUser('')).rejects
-        .toThrow(new Error('Access token is null after supposedly successful refresh.'));
+      await client.ensureAuthenticatedUser('');
 
+      expect(window.location.assign).toHaveBeenCalled();
       expect(client.loggingService.logError.mock.calls.length).toBe(1);
       expect(client.loggingService.logError.mock.calls[0][0])
         .toEqual('frontend-auth: Access token is null after supposedly successful refresh.');
@@ -343,8 +348,7 @@ describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () =
     client.isAuthUrl.mockReturnValue(false);
     client.getDecodedAccessToken.mockReturnValue({});
     client.isAccessTokenExpired.mockReturnValue(true);
-    // eslint-disable-next-line no-underscore-dangle
-    axiosConfig.__Rewire__('queueRequests', false);
+    client.refreshAccessTokenPromise = null;
     const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
     return fulfilledResult.catch(() => {
       expect(client.logout).toHaveBeenCalled();
@@ -358,8 +362,7 @@ describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () =
     client.isAuthUrl.mockReturnValue(false);
     client.getDecodedAccessToken.mockReturnValue({});
     client.isAccessTokenExpired.mockReturnValue(true);
-    // eslint-disable-next-line no-underscore-dangle
-    axiosConfig.__Rewire__('queueRequests', false);
+    client.refreshAccessTokenPromise = null;
     const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
 
     return fulfilledResult.catch(() => {

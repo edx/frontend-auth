@@ -66,7 +66,7 @@ export default function applyAuthInterface(httpClient, authConfig) {
         httpClient.loggingService.logError(`frontend-auth: ${errorMessage}`, {
           axiosResponse: response,
         });
-        throw new Error(errorMessage);
+        httpClient.logout(httpClient.appBaseUrl + route);
       }
 
       return formatAuthenticatedResponse(refreshedAccessToken);
@@ -77,7 +77,6 @@ export default function applyAuthInterface(httpClient, authConfig) {
       if (isRedirectFromLoginPage) {
         throw new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.');
       }
-
       // The user is not authenticated, send them to the login page.
       httpClient.login(httpClient.appBaseUrl + route);
     });
@@ -101,13 +100,24 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.refreshAccessTokenOnce = () => {
     if (!httpClient.isAccessTokenExpired(httpClient.getDecodedAccessToken())) {
       // The token is valid. Carry on.
-      return Promise.resolve();
+      return Promise.resolve(httpClient.getDecodedAccessToken());
     }
 
     if (httpClient.refreshAccessTokenPromise === null) {
       // No token refresh request is in-flight. Make the request.
       httpClient.refreshAccessTokenPromise = httpClient
         .refreshAccessToken()
+        .catch((error) => {
+          // If no callback is supplied frontend-auth will (ultimately) redirect the user to login.
+          // The user is redirected to logout to ensure authentication clean-up, which in turn
+          // redirects to login.
+          if (httpClient.handleRefreshAccessTokenFailure) {
+            httpClient.handleRefreshAccessTokenFailure(error);
+          } else {
+            httpClient.logout();
+          }
+          throw error;
+        })
         .finally(() => {
           httpClient.refreshAccessTokenPromise = null;
         });
