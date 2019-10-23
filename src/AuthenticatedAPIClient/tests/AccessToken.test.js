@@ -36,21 +36,20 @@ yesterday.setDate(yesterday.getDate() - 1);
 const tomorrow = new Date();
 tomorrow.setDate(tomorrow.getDate() + 1);
 
-const jwt = { user_id: '12345' };
+const jwt = {
+  user_id: '12345',
+  preferred_username: 'test',
+  administrator: false,
+};
 const expiredJwt = Object.assign({ exp: yesterday.getTime() / 1000 }, jwt);
 const encodedExpiredJwt = `header.${btoa(JSON.stringify(expiredJwt))}`;
 const validJwt = Object.assign({ exp: tomorrow.getTime() / 1000 }, jwt);
 const encodedValidJwt = `header.${btoa(JSON.stringify(validJwt))}`;
-
+const jwtWithRoles = Object.assign({ roles: ['role1', 'role2'] }, jwt);
+const validJwtWithRoles = Object.assign({ exp: tomorrow.getTime() / 1000 }, jwtWithRoles);
+const encodedValidJwtWithRoles = `header.${btoa(JSON.stringify(validJwtWithRoles))}`;
 
 describe('AccessToken', () => {
-  const defaultParameters = {
-    cookieName: 'test',
-    refreshEndpoint: '/v1/refresh',
-    handleUnexpectedRefreshFailure: jest.fn(),
-  };
-
-
   describe('Instantiation', () => {
     beforeEach(() => {
       resetMocks();
@@ -59,7 +58,7 @@ describe('AccessToken', () => {
     it('Uses a valid jwt cookie token if it exists on instantiation', () => {
       mockCookies.get.mockReturnValue(encodedValidJwt);
       // eslint-disable-next-line no-unused-vars
-      const accessToken = new AccessToken(defaultParameters);
+      const accessToken = new AccessToken({});
       expect(mockAxios.post).not.toHaveBeenCalled();
     });
 
@@ -70,13 +69,10 @@ describe('AccessToken', () => {
         return Promise.resolve();
       });
 
-      const accessToken = new AccessToken(defaultParameters);
+      const accessToken = new AccessToken({});
 
       expect(mockAxios.post).toHaveBeenCalled();
-      expect(accessToken.refreshPromise).not.toBeUndefined();
-      return accessToken.refreshPromise.finally(() => {
-        expect(accessToken.value).toEqual(validJwt);
-      });
+      return expect(accessToken.refreshPromise).resolves.toEqual(validJwt);
     });
 
     it('Refreshes if no jwt cookie token exists on instantiation', () => {
@@ -86,52 +82,40 @@ describe('AccessToken', () => {
         return Promise.resolve();
       });
 
-      const accessToken = new AccessToken(defaultParameters);
+      const accessToken = new AccessToken({});
 
       expect(mockAxios.post).toHaveBeenCalled();
-      expect(accessToken.refreshPromise).not.toBeUndefined();
-      return accessToken.refreshPromise.finally(() => {
-        expect(accessToken.value).toEqual(validJwt);
-      });
+      return expect(accessToken.refreshPromise).resolves.toEqual(validJwt);
     });
   });
 
-  describe('accessToken.request()', () => {
+  describe('accessToken.get()', () => {
     mockCookies.get.mockReturnValue(encodedValidJwt);
     mockAxios.post.mockImplementation(() => Promise.resolve());
 
-    const accessToken = new AccessToken(defaultParameters);
+    const accessToken = new AccessToken({});
 
     beforeEach(() => {
       resetMocks();
       mockCookies.get.mockReturnValue(encodedValidJwt);
       mockAxios.post.mockImplementation(() => Promise.resolve());
-      defaultParameters.handleUnexpectedRefreshFailure.mockReset();
-    });
-
-    it('makes a refresh request even the if the jwt cookie token is not expired', () => {
-      expect(accessToken.isExpired).toBe(false);
-      return accessToken.refresh()
-        .then(() => {
-          expect(mockAxios.post).toHaveBeenCalled();
-        });
     });
 
     it('makes a single request even if called multiple times in succession', () => {
-      let resolveRefreshPromisePost;
-      mockAxios.post.mockReturnValue(new Promise((resolve) => {
-        resolveRefreshPromisePost = resolve;
+      let resolvePost;
+      mockCookies.get.mockReturnValue(undefined);
+      mockAxios.post.mockImplementation(() => new Promise((resolve) => {
+        mockCookies.get.mockReturnValue(encodedValidJwt);
+        resolvePost = resolve;
       }));
 
-      expect(accessToken.isExpired).toBe(false);
-
       const allRefreshes = Promise.all([
-        accessToken.refresh(),
-        accessToken.refresh(),
-        accessToken.refresh(),
+        accessToken.get(),
+        accessToken.get(),
+        accessToken.get(),
       ]);
 
-      resolveRefreshPromisePost();
+      resolvePost();
 
       return allRefreshes.then(() => {
         expect(mockAxios.post).toHaveBeenCalledTimes(1);
@@ -142,47 +126,57 @@ describe('AccessToken', () => {
       mockCookies.get.mockReturnValue(undefined);
       mockAxios.post.mockReturnValue(Promise.resolve('responseValue'));
 
-      return accessToken.refresh()
+      return accessToken.get()
         .catch(() => {
-          expect(logError).toHaveBeenCalledWith('frontend-auth: Access token is null after supposedly successful refresh.', {
+          expect(logError).toHaveBeenCalledWith('frontend-auth: Access token is still null after successful refresh.', {
             axiosResponse: 'responseValue',
           });
-          expect(defaultParameters.handleUnexpectedRefreshFailure).toHaveBeenCalled();
         });
-    });
-  });
-
-  describe('accessToken.readJwtToken()', () => {
-    const accessToken = new AccessToken(defaultParameters);
-
-    beforeEach(() => {
-      resetMocks();
-      mockAxios.post.mockImplementation(() => Promise.resolve());
-    });
-
-    it('handles a failure to read the cookie', () => {
-      mockCookies.get.mockImplementation(() => {
-        throw new Error('Could not read cookie');
-      });
-
-      accessToken.readJwtToken();
-
-      expect(logInfo).toHaveBeenCalledWith(`Error reading the access token cookie: ${defaultParameters.cookieName}.`);
-      expect(accessToken.value).toBeNull();
-      expect(accessToken.isExpired).toBe(true);
     });
 
     it('handles a failure to decode the jwt', () => {
       mockCookies.get.mockReturnValue('a malformed jwt string');
 
-      accessToken.readJwtToken();
+      return accessToken.get().catch(() => {
+        expect(logInfo).toHaveBeenCalledWith('Error decoding JWT token.', expect.objectContaining({
+          error: expect.any(Error),
+          cookieValue: 'a malformed jwt string',
+        }));
+      });
+    });
 
-      expect(logInfo).toHaveBeenCalledWith('Error decoding JWT token.', expect.objectContaining({
-        jwtDecodeError: expect.any(Error),
-        cookieValue: 'a malformed jwt string',
-      }));
-      expect(accessToken.value).toBeNull();
-      expect(accessToken.isExpired).toBe(true);
+    it('decodes a valid jwt cookie', () => {
+      mockCookies.get.mockReturnValue(encodedValidJwt);
+
+      return accessToken.get()
+        .then((result) => {
+          expect(result).toEqual(expect.objectContaining({
+            authenticatedUser: {
+              administrator: validJwt.administrator,
+              roles: [],
+              userId: validJwt.user_id,
+              username: validJwt.preferred_username,
+            },
+            decodedAccessToken: validJwt,
+          }));
+        });
+    });
+
+    it('decodes a valid jwt cookie with roles', () => {
+      mockCookies.get.mockReturnValue(encodedValidJwtWithRoles);
+
+      return accessToken.get()
+        .then((result) => {
+          expect(result).toEqual(expect.objectContaining({
+            authenticatedUser: {
+              administrator: validJwtWithRoles.administrator,
+              roles: validJwtWithRoles.roles,
+              userId: validJwtWithRoles.user_id,
+              username: validJwtWithRoles.preferred_username,
+            },
+            decodedAccessToken: validJwtWithRoles,
+          }));
+        });
     });
   });
 });

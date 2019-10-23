@@ -1,26 +1,5 @@
 import AccessToken from './AccessToken';
 
-function getAuthenticatedUserFromDecodedAccessToken(decodedAccessToken) {
-  /* istanbul ignore next */
-  if (!decodedAccessToken) {
-    throw new Error('Decoded access token is required to get authenticated user.');
-  }
-
-  return {
-    userId: decodedAccessToken.user_id,
-    username: decodedAccessToken.preferred_username,
-    roles: decodedAccessToken.roles ? decodedAccessToken.roles : [],
-    administrator: decodedAccessToken.administrator,
-  };
-}
-
-function formatAuthenticatedResponse(decodedAccessToken) {
-  return {
-    authenticatedUser: getAuthenticatedUserFromDecodedAccessToken(decodedAccessToken),
-    decodedAccessToken,
-  };
-}
-
 // Apply the auth-related properties and functions to the Axios API client.
 export default function applyAuthInterface(httpClient, authConfig) {
   /* eslint-disable no-param-reassign */
@@ -37,7 +16,6 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.accessToken = new AccessToken({
     cookieName: authConfig.accessTokenCookieName,
     refreshEndpoint: authConfig.refreshAccessTokenEndpoint,
-    handleUnexpectedRefreshFailure: () => { httpClient.logout(); },
   });
 
   /**
@@ -52,24 +30,30 @@ export default function applyAuthInterface(httpClient, authConfig) {
    * @param route: used to return user after login when not authenticated.
    * @returns Promise that resolves to { authenticatedUser: {...}, decodedAccessToken: {...}}
    */
-  httpClient.ensureAuthenticatedUser = (route) => {
-    if (!httpClient.accessToken.isExpired) {
-      return Promise.resolve(formatAuthenticatedResponse(httpClient.accessToken.value));
-    }
+  httpClient.ensureAuthenticatedUser = route => new Promise((resolve, reject) => {
+    httpClient.accessToken.get()
+      .then((authenticatedUserToken) => {
+        const userIsAuthenticated = authenticatedUserToken.authenticatedUser.userId !== undefined;
 
-    return httpClient.accessToken.refresh()
-      .then(refreshedAccessToken => formatAuthenticatedResponse(refreshedAccessToken))
-      .catch(() => {
-        const isRedirectFromLoginPage = global.document.referrer &&
+        if (!userIsAuthenticated) {
+          const isRedirectFromLoginPage = global.document.referrer &&
           global.document.referrer.startsWith(httpClient.loginUrl);
 
-        if (isRedirectFromLoginPage) {
-          throw new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.');
+          if (isRedirectFromLoginPage) {
+            reject(new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.'));
+          }
+          // The user is not authenticated, send them to the login page.
+          httpClient.login(httpClient.appBaseUrl + route);
         }
-        // The user is not authenticated, send them to the login page.
-        httpClient.login(httpClient.appBaseUrl + route);
+
+        resolve(authenticatedUserToken);
+      })
+      .catch((error) => {
+        // Unexpected errors getting the access token.
+        httpClient.logout();
+        reject(error);
       });
-  };
+  });
 
   httpClient.login = (redirectUrl = authConfig.appBaseUrl) => {
     global.location.assign(`${httpClient.loginUrl}?next=${encodeURIComponent(redirectUrl)}`);

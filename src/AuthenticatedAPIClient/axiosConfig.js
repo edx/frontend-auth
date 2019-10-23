@@ -57,10 +57,7 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
   }
 
   function ensureValidJWTCookie(axiosRequestConfig) {
-    if (!authenticatedAPIClient.accessToken.isExpired) {
-      return Promise.resolve(axiosRequestConfig);
-    }
-    return authenticatedAPIClient.accessToken.refresh().then(() => axiosRequestConfig);
+    return authenticatedAPIClient.accessToken.get().then(() => axiosRequestConfig);
   }
 
   // Log errors and info for unauthorized API responses
