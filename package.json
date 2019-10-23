@@ -2,7 +2,7 @@
   "name": "@edx/frontend-auth",
   "version": "1.0.0-semantically-released",
   "description": "Frontend auth client code for use with the edX auth service.",
-  "main": "dist/main.js",
+  "main": "src/index.js",
   "publishConfig": {
     "access": "public"
   },
@@ -71,6 +71,7 @@
     "webpack-cli": "3.2.1"
   },
   "peerDependencies": {
+    "@edx/frontend-logging": "^2.0.0",
     "prop-types": "^15.5.10",
     "react": "^16.4.2",
     "react-redux": "^5.0.7",
@@ -78,7 +79,6 @@
     "redux": "^4.0.0"
   },
   "dependencies": {
-    "@edx/frontend-logging": "^2.0.1",
     "axios": "^0.18.1",
     "camelcase-keys": "^5.0.0",
     "jwt-decode": "^2.2.0",

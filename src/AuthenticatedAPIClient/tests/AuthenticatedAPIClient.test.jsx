@@ -1,7 +1,7 @@
 import PubSub from 'pubsub-js';
-import Cookies from 'universal-cookie';
 import { NewRelicLoggingService } from '@edx/frontend-logging';
 
+import AccessToken from '../AccessToken';
 import applyMockAuthInterface from './mockAuthInterface';
 import axiosConfig from '../axiosConfig';
 import getAuthenticatedAPIClient from '../index';
@@ -25,20 +25,24 @@ const jwt = {
   preferred_username: 'test',
   administrator: false,
 };
-const expiredJwt = Object.assign({ exp: yesterday.getTime() / 1000 }, jwt);
-const encodedExpiredJwt = `header.${btoa(JSON.stringify(expiredJwt))}`;
+
 const validJwt = Object.assign({ exp: tomorrow.getTime() / 1000 }, jwt);
-const encodedValidJwt = `header.${btoa(JSON.stringify(validJwt))}`;
 const jwtWithRoles = Object.assign({ roles: ['role1', 'role2'] }, jwt);
 const validJwtWithRoles = Object.assign({ exp: tomorrow.getTime() / 1000 }, jwtWithRoles);
-const encodedValidJwtWithRoles = `header.${btoa(JSON.stringify(validJwtWithRoles))}`;
 
-const mockCookies = {
-  get: jest.fn(),
-};
-jest.genMockFromModule('universal-cookie');
-Cookies.mockImplementation(() => mockCookies);
-jest.mock('universal-cookie');
+
+jest.mock('../AccessToken', () => {
+  const mockAccessTokenInstance = {
+    value: undefined,
+    isExpired: true,
+    refresh: jest.fn(),
+  };
+  return ({ handleUnexpectedRefreshFailure }) => {
+    mockAccessTokenInstance.handleUnexpectedRefreshFailure = handleUnexpectedRefreshFailure;
+    return mockAccessTokenInstance;
+  };
+});
+const mockAccessToken = new AccessToken({});
 
 // client is a singleton, so we need to store originals once before any mocking
 const client = getAuthenticatedAPIClient(authConfig);
@@ -51,14 +55,6 @@ beforeEach(() => {
   jest.spyOn(global.document, 'referrer', 'get').mockReturnValue('');
 });
 
-function expectRefreshAccessTokenToHaveBeenCalled() {
-  expect(client.refreshAccessToken).toHaveBeenCalled();
-}
-
-function expectRefreshAccessTokenToNotHaveBeenCalled() {
-  expect(client.refreshAccessToken).not.toHaveBeenCalled();
-}
-
 function expectGetCsrfTokenToHaveBeenCalled() {
   expect(client.getCsrfToken).toHaveBeenCalled();
 }
@@ -69,40 +65,6 @@ function expectGetCsrfTokenToNotHaveBeenCalled() {
 
 function expectCsrfHeaderSet(request) {
   expect(request.headers['X-CSRFToken']).toBe('test-csrf-token');
-}
-
-function testJwtCookieInterceptorFulfillment(
-  isAuthUrl,
-  mockAccessToken,
-  isAccessTokenExpired,
-  queueRequests,
-  rejectRefreshAccessToken,
-  expects,
-) {
-  // eslint-disable-next-line consistent-return
-  it(`${expects.name} when isAuthUrl=${isAuthUrl} mockAccessToken=${mockAccessToken} isAccessTokenExpired=${isAccessTokenExpired}`, () => {
-    applyMockAuthInterface(client, rejectRefreshAccessToken);
-    client.isAuthUrl.mockReturnValue(isAuthUrl);
-    client.getDecodedAccessToken.mockReturnValue(mockAccessToken);
-    client.isAccessTokenExpired.mockReturnValue(isAccessTokenExpired);
-    // eslint-disable-next-line no-underscore-dangle
-    if (queueRequests) {
-      client.refreshAccessTokenPromise = new Promise(() => {});
-    } else {
-      client.refreshAccessTokenPromise = null;
-    }
-    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
-    expects(client);
-
-    if (rejectRefreshAccessToken) {
-      return fulfilledResult.catch(() => {
-        expect(client.logout).toHaveBeenCalled();
-      });
-    } else { // eslint-disable-line no-else-return
-      expect(client.logout).not.toHaveBeenCalled();
-      expect(fulfilledResult).toBeInstanceOf(Object); // from above: fullfilled({})
-    }
-  });
 }
 
 function testCsrfTokenInterceptorFulfillment(
@@ -162,12 +124,6 @@ function expectEnsureSuccessfulAuthenticatedUserResponse(authenticatedUser, deco
 describe('AuthenticatedAPIClient auth interface', () => {
   window.location.assign = jest.fn();
 
-  it('has method isAccessTokenExpired', () => {
-    expect(client.isAccessTokenExpired(validJwt)).toBe(false);
-    expect(client.isAccessTokenExpired(expiredJwt)).toBe(true);
-    expect(client.isAccessTokenExpired()).toBe(true);
-  });
-
   it('has method login', () => {
     const loginUrl = process.env.LOGIN_URL;
     const expectedRedirectUrl = encodeURIComponent(process.env.BASE_URL);
@@ -188,29 +144,6 @@ describe('AuthenticatedAPIClient auth interface', () => {
     });
   });
 
-  it('has method refreshAccessToken', () => {
-    client.post = jest.fn();
-
-    client.post.mockReturnValueOnce(new Promise(resolve => resolve()));
-    client.refreshAccessToken();
-    expect(client.post).toHaveBeenCalled();
-
-    const message = 'Failed to refresh access token.';
-    // eslint-disable-next-line prefer-promise-reject-errors
-    client.post.mockReturnValueOnce(new Promise((resolve, reject) => reject({ message })));
-    client.refreshAccessToken()
-      .catch((error) => {
-        expect(error.message).toEqual(message);
-      });
-  });
-
-  it('has method isAuthUrl', () => {
-    const authUrl = process.env.REFRESH_ACCESS_TOKEN_ENDPOINT;
-    const nonAuthUrl = 'http://example.com';
-    expect(client.isAuthUrl(authUrl)).toBe(true);
-    expect(client.isAuthUrl(nonAuthUrl)).toBe(false);
-  });
-
   it('has method getCsrfToken', () => {
     client.get = jest.fn();
     const mockResponse = {};
@@ -228,16 +161,21 @@ describe('AuthenticatedAPIClient auth interface', () => {
   });
 
   describe('ensureAuthenticatedUser', () => {
+    beforeEach(() => {
+      mockAccessToken.value = undefined;
+      mockAccessToken.refresh.mockReset();
+      window.location.assign.mockReset();
+    });
+
     it('redirects to login when no valid JWT', () => {
       const loginUrl = process.env.LOGIN_URL;
       const expectedRedirectUrl = encodeURIComponent(process.env.BASE_URL);
       const expectedLocation = `${loginUrl}?next=${expectedRedirectUrl}`;
-      client.isAccessTokenExpired = jest.fn();
-      client.isAccessTokenExpired.mockReturnValueOnce(true);
-      client.refreshAccessToken = jest.fn();
-      client.refreshAccessToken.mockReturnValueOnce(new Promise((resolve, reject) => {
-        reject({ message: 'Failed!' }); // eslint-disable-line prefer-promise-reject-errors
-      }));
+      mockAccessToken.value = undefined;
+      mockAccessToken.isExpired = true;
+      // eslint-disable-next-line prefer-promise-reject-errors
+      mockAccessToken.refresh.mockReturnValue(Promise.reject({ message: 'Failed' }));
+
       return client.ensureAuthenticatedUser('').finally(() => {
         expect(window.location.assign).toHaveBeenCalledWith(expectedLocation);
       });
@@ -245,61 +183,54 @@ describe('AuthenticatedAPIClient auth interface', () => {
 
     it('errors when no valid JWT after coming from login', async () => {
       jest.spyOn(global.document, 'referrer', 'get').mockReturnValue(process.env.LOGIN_URL);
-      client.isAccessTokenExpired = jest.fn();
-      client.isAccessTokenExpired.mockReturnValueOnce(true);
-      client.refreshAccessToken = jest.fn();
-      client.refreshAccessToken.mockReturnValueOnce(new Promise((resolve, reject) => {
-        reject({ message: 'Failed!' }); // eslint-disable-line prefer-promise-reject-errors
-      }));
+      mockAccessToken.value = undefined;
+      mockAccessToken.isExpired = true;
+      // eslint-disable-next-line prefer-promise-reject-errors
+      mockAccessToken.refresh.mockReturnValue(Promise.reject({ message: 'Failed' }));
+
 
       await expect(client.ensureAuthenticatedUser('')).rejects
         .toThrow(new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.'));
     });
 
     it('promise resolves to access token when valid JWT', async () => {
-      mockCookies.get.mockReturnValue(encodedValidJwt);
+      mockAccessToken.value = validJwt;
+      mockAccessToken.isExpired = false;
+
       const { authenticatedUser, decodedAccessToken } = await client.ensureAuthenticatedUser('');
 
       expectEnsureSuccessfulAuthenticatedUserResponse(authenticatedUser, decodedAccessToken);
     });
 
     it('promise resolves to access token with roles when valid JWT', async () => {
-      mockCookies.get.mockReturnValue(encodedValidJwtWithRoles);
+      mockAccessToken.value = validJwtWithRoles;
+      mockAccessToken.isExpired = false;
+
       const { authenticatedUser, decodedAccessToken } = await client.ensureAuthenticatedUser('');
 
       expectEnsureSuccessfulAuthenticatedUserResponse(authenticatedUser, decodedAccessToken, validJwtWithRoles);
     });
 
     it('promise resolves to access token after refresh', async () => {
-      mockCookies.get
-        .mockReturnValueOnce(encodedExpiredJwt)
-        .mockReturnValueOnce(encodedValidJwt);
-      client.refreshAccessToken = jest.fn();
-      client.refreshAccessToken.mockReturnValueOnce(new Promise((resolve) => {
-        resolve();
-      }));
+      mockAccessToken.value = undefined;
+      mockAccessToken.isExpired = true;
+      mockAccessToken.refresh.mockImplementation(() => {
+        mockAccessToken.value = validJwt;
+        mockAccessToken.isExpired = false;
+        return Promise.resolve(mockAccessToken.value);
+      });
 
       const { authenticatedUser, decodedAccessToken } = await client.ensureAuthenticatedUser('');
 
-      expect(client.refreshAccessToken.mock.calls.length).toBe(1);
       expectEnsureSuccessfulAuthenticatedUserResponse(authenticatedUser, decodedAccessToken);
     });
 
-    it('logs and redirect if refresh access token does not properly set cookie', async () => {
-      client.loggingService.logError = jest.fn();
-      client.getDecodedAccessToken = jest.fn();
-      client.getDecodedAccessToken.mockReturnValue(null);
-      client.refreshAccessToken = jest.fn();
-      client.refreshAccessToken.mockReturnValueOnce(new Promise((resolve) => {
-        resolve();
-      }));
-
-      await client.ensureAuthenticatedUser('');
-
-      expect(window.location.assign).toHaveBeenCalled();
-      expect(client.loggingService.logError.mock.calls.length).toBe(1);
-      expect(client.loggingService.logError.mock.calls[0][0])
-        .toEqual('frontend-auth: Access token is null after supposedly successful refresh.');
+    it('logs out and redirects if there is an unexpected problem refreshing the jwt cookie', async () => {
+      jest.spyOn(client, 'logout');
+      // handleUnexpectedRefreshFailure is supplied upon construction
+      mockAccessToken.handleUnexpectedRefreshFailure();
+      expect(client.logout).toHaveBeenCalled();
+      client.logout.mockRestore();
     });
   });
 });
@@ -313,25 +244,36 @@ describe('AuthenticatedAPIClient request headers', () => {
 describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () => {
   beforeEach(() => {
     PubSub.clearAllSubscriptions();
+    mockAccessToken.value = undefined;
+    mockAccessToken.isExpired = true;
+    mockAccessToken.refresh.mockReset();
   });
 
-  [
-    /*
-    isAuthUrl, mockAccessToken, isAccessTokenExpired, queueRequests,
-    rejectRefreshAccessToken, expects
-    */
-    [true, null, true, false, false, expectRefreshAccessTokenToNotHaveBeenCalled],
-    [true, {}, true, false, false, expectRefreshAccessTokenToNotHaveBeenCalled],
-    [true, null, false, false, false, expectRefreshAccessTokenToNotHaveBeenCalled],
-    [true, {}, false, false, false, expectRefreshAccessTokenToNotHaveBeenCalled],
-    [false, null, true, false, false, expectRefreshAccessTokenToHaveBeenCalled],
-    [false, {}, true, false, false, expectRefreshAccessTokenToHaveBeenCalled],
-    [false, {}, true, false, true, expectRefreshAccessTokenToHaveBeenCalled],
-    [false, {}, true, true, false, expectRefreshAccessTokenToNotHaveBeenCalled],
-    [false, null, false, false, false, expectRefreshAccessTokenToNotHaveBeenCalled],
-    [false, {}, false, false, false, expectRefreshAccessTokenToNotHaveBeenCalled],
-  ].forEach((mockValues) => {
-    testJwtCookieInterceptorFulfillment(...mockValues);
+  it('fulfills without calling refresh if the token is valid', () => {
+    mockAccessToken.value = {};
+    mockAccessToken.isExpired = false;
+    mockAccessToken.refresh.mockReturnValue(Promise.resolve());
+    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
+    expect(mockAccessToken.refresh).not.toHaveBeenCalled();
+    return expect(fulfilledResult).resolves.toBeInstanceOf(Object);
+  });
+
+  it('fulfills after calling refresh if the token is expired', () => {
+    mockAccessToken.value = null;
+    mockAccessToken.isExpired = true;
+    mockAccessToken.refresh.mockReturnValue(Promise.resolve());
+    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
+    expect(mockAccessToken.refresh).toHaveBeenCalled();
+    return expect(fulfilledResult).resolves.toBeInstanceOf(Object);
+  });
+
+  it('rejects after calling unsuccessful refresh', () => {
+    mockAccessToken.value = null;
+    mockAccessToken.isExpired = true;
+    mockAccessToken.refresh.mockReturnValue(Promise.reject());
+    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
+    expect(mockAccessToken.refresh).toHaveBeenCalled();
+    return expect(fulfilledResult).rejects.toBeUndefined();
   });
 
   it('returns error if it is rejected', () => {
@@ -340,36 +282,6 @@ describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () =
       .catch((rejection) => {
         expect(rejection).toBe(error);
       });
-  });
-
-  it('redirects to logout if a token refresh fails', () => {
-    const rejectRefreshAccessToken = true;
-    applyMockAuthInterface(client, rejectRefreshAccessToken);
-    client.isAuthUrl.mockReturnValue(false);
-    client.getDecodedAccessToken.mockReturnValue({});
-    client.isAccessTokenExpired.mockReturnValue(true);
-    client.refreshAccessTokenPromise = null;
-    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
-    return fulfilledResult.catch(() => {
-      expect(client.logout).toHaveBeenCalled();
-    });
-  });
-
-  it('executes the handleRefreshAccessTokenFailure instead of logout if a token refresh fails', () => {
-    const rejectRefreshAccessToken = true;
-    client.handleRefreshAccessTokenFailure = jest.fn();
-    applyMockAuthInterface(client, rejectRefreshAccessToken);
-    client.isAuthUrl.mockReturnValue(false);
-    client.getDecodedAccessToken.mockReturnValue({});
-    client.isAccessTokenExpired.mockReturnValue(true);
-    client.refreshAccessTokenPromise = null;
-    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
-
-    return fulfilledResult.catch(() => {
-      expect(client.logout).not.toHaveBeenCalled();
-      expect(client.handleRefreshAccessTokenFailure).toHaveBeenCalled();
-      delete client.handleRefreshAccessTokenFailure;
-    });
   });
 });
 
