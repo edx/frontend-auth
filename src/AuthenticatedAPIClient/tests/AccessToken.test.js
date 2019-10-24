@@ -105,7 +105,6 @@ describe('AccessToken', () => {
       let resolvePost;
       mockCookies.get.mockReturnValue(undefined);
       mockAxios.post.mockImplementation(() => new Promise((resolve) => {
-        mockCookies.get.mockReturnValue(encodedValidJwt);
         resolvePost = resolve;
       }));
 
@@ -115,6 +114,7 @@ describe('AccessToken', () => {
         accessToken.get(),
       ]);
 
+      mockCookies.get.mockReturnValue(encodedValidJwt);
       resolvePost();
 
       return allRefreshes.then(() => {
