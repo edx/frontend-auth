@@ -171,7 +171,9 @@ describe('AuthenticatedAPIClient auth interface', () => {
 
     it('promise resolves to access token', async () => {
       const expectedValue = {
-        authenticatedUser: {},
+        authenticatedUser: {
+          userId: 'test',
+        },
         decodedAccessToken: {},
         anything: 'any value returned by access token',
       };
@@ -204,8 +206,6 @@ describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () =
   });
 
   it('fulfills after calling get if the token is expired', () => {
-    mockAccessToken.value = null;
-    mockAccessToken.isExpired = true;
     mockAccessToken.get.mockReturnValue(Promise.resolve());
     const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
     expect(mockAccessToken.get).toHaveBeenCalled();

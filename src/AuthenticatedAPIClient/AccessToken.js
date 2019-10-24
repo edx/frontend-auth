@@ -8,16 +8,21 @@ const cookies = new Cookies();
 
 const decodeJwtCookie = (cookieName) => {
   const cookieValue = cookies.get(cookieName);
-  try {
-    return jwtDecode(cookieValue);
-  } catch (error) {
-    logInfo('Error decoding JWT token.', { error, cookieValue });
-    return null;
+
+  if (cookieValue) {
+    try {
+      return jwtDecode(cookieValue);
+    } catch (error) {
+      logInfo('Error decoding JWT token.', { error, cookieValue });
+    }
   }
+
+  return null;
 };
 
 const isTokenExpired = token => !token || token.exp < Date.now() / 1000;
 
+/* istanbul ignore next */
 const formatAccessToken = (decodedAccessToken = {}) => ({
   authenticatedUser: {
     userId: decodedAccessToken.user_id,
