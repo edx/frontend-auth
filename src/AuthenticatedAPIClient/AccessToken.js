@@ -41,8 +41,8 @@ export default class AccessToken {
   }
 
   refresh() {
-    if (this.refreshPromise === undefined) {
-      this.refreshPromise = httpClient.post(this.refreshEndpoint)
+    if (this.refreshRequestPromise === undefined) {
+      this.refreshRequestPromise = httpClient.post(this.refreshEndpoint)
         .then((axiosResponse) => {
           const decodedAccessToken = decodeJwtCookie(this.cookieName);
 
@@ -59,11 +59,11 @@ export default class AccessToken {
           return decodedAccessToken;
         })
         .finally(() => {
-          delete this.refreshPromise;
+          delete this.refreshRequestPromise;
         });
     }
 
-    return this.refreshPromise;
+    return this.refreshRequestPromise;
   }
 
   async get() {
