@@ -6,6 +6,8 @@ import { logInfo, logError } from '@edx/frontend-logging';
 const httpClient = axios.create();
 const cookies = new Cookies();
 
+const emptyJwt = {};
+
 const decodeJwtCookie = (cookieName) => {
   const cookieValue = cookies.get(cookieName);
 
@@ -17,12 +19,13 @@ const decodeJwtCookie = (cookieName) => {
     }
   }
 
-  return null;
+  return emptyJwt;
 };
 
-const isTokenExpired = token => !token || token.exp < Date.now() / 1000;
+const isTokenExpired = token => !token
+  || token === emptyJwt
+  || token.exp < Date.now() / 1000;
 
-/* istanbul ignore next */
 const formatAccessToken = (decodedAccessToken = {}) => ({
   authenticatedUser: {
     userId: decodedAccessToken.user_id,
@@ -42,25 +45,32 @@ export default class AccessToken {
 
   refresh() {
     if (this.refreshRequestPromise === undefined) {
-      this.refreshRequestPromise = httpClient.post(this.refreshEndpoint)
-        .then((axiosResponse) => {
-          const decodedAccessToken = decodeJwtCookie(this.cookieName);
+      this.refreshRequestPromise = new Promise((resolve, reject) => {
+        httpClient.post(this.refreshEndpoint)
+          .then((axiosResponse) => {
+            const decodedAccessToken = decodeJwtCookie(this.cookieName);
 
-          if (!decodedAccessToken) {
-            const error = new Error('Access token is still null after successful refresh.');
-            // This is an unexpected case. The refresh endpoint should
-            // set the cookie that is needed. See ARCH-948 for more
-            // information on a similar situation that was happening
-            // prior to this refactor in Oct 2019.
-            logError(`frontend-auth: ${error.message}`, { axiosResponse });
-            throw error;
-          }
+            if (!decodedAccessToken) {
+              const error = new Error('Access token is still null after successful refresh.');
+              error.isIrrecoverable = true;
+              // This is an unexpected case. The refresh endpoint should
+              // set the cookie that is needed. See ARCH-948 for more
+              // information on a similar situation that was happening
+              // prior to this refactor in Oct 2019.
+              logError(`frontend-auth: ${error.message}`, { axiosResponse });
+              reject(error);
+            }
 
-          return decodedAccessToken;
-        })
-        .finally(() => {
-          delete this.refreshRequestPromise;
-        });
+            resolve(decodedAccessToken);
+          })
+          .catch(() => {
+            // Resolve with an empty jwt indicating there is no authenticated user
+            resolve(decodeJwtCookie(this.cookieName));
+          })
+          .finally(() => {
+            delete this.refreshRequestPromise;
+          });
+      });
     }
 
     return this.refreshRequestPromise;

@@ -72,7 +72,7 @@ describe('AccessToken', () => {
       const accessToken = new AccessToken({});
 
       expect(mockAxios.post).toHaveBeenCalled();
-      return expect(accessToken.refreshPromise).resolves.toEqual(validJwt);
+      return expect(accessToken.refreshRequestPromise).resolves.toEqual(validJwt);
     });
 
     it('Refreshes if no jwt cookie token exists on instantiation', () => {
@@ -84,8 +84,10 @@ describe('AccessToken', () => {
 
       const accessToken = new AccessToken({});
 
-      expect(mockAxios.post).toHaveBeenCalled();
-      return expect(accessToken.refreshPromise).resolves.toEqual(validJwt);
+      return accessToken.refreshRequestPromise.then((result) => {
+        expect(mockAxios.post).toHaveBeenCalled();
+        expect(result).toEqual(validJwt);
+      });
     });
   });
 
