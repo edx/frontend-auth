@@ -26,7 +26,6 @@ export default class AccessToken {
   constructor({ cookieName, refreshEndpoint }) {
     this.cookieName = cookieName;
     this.refreshEndpoint = refreshEndpoint;
-    this.get(); // get the token to make sure it's ready ASAP
   }
 
   refresh() {
