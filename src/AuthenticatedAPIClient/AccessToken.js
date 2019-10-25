@@ -6,8 +6,6 @@ import { logInfo, logError } from '@edx/frontend-logging';
 const httpClient = axios.create();
 const cookies = new Cookies();
 
-const emptyJwt = {};
-
 const decodeJwtCookie = (cookieName) => {
   const cookieValue = cookies.get(cookieName);
 
@@ -19,22 +17,10 @@ const decodeJwtCookie = (cookieName) => {
     }
   }
 
-  return emptyJwt;
+  return null;
 };
 
-const isTokenExpired = token => !token
-  || token === emptyJwt
-  || token.exp < Date.now() / 1000;
-
-const formatAccessToken = (decodedAccessToken = {}) => ({
-  authenticatedUser: {
-    userId: decodedAccessToken.user_id,
-    username: decodedAccessToken.preferred_username,
-    roles: decodedAccessToken.roles ? decodedAccessToken.roles : [],
-    administrator: decodedAccessToken.administrator,
-  },
-  decodedAccessToken,
-});
+const isTokenExpired = token => !token || token.exp < Date.now() / 1000;
 
 export default class AccessToken {
   constructor({ cookieName, refreshEndpoint }) {
@@ -64,7 +50,7 @@ export default class AccessToken {
             resolve(decodedAccessToken);
           })
           .catch(() => {
-            // Resolve with an empty jwt indicating there is no authenticated user
+            // Resolve with whatever the current cookie value is
             resolve(decodeJwtCookie(this.cookieName));
           })
           .finally(() => {
@@ -83,6 +69,20 @@ export default class AccessToken {
       decodedAccessToken = await this.refresh();
     }
 
-    return formatAccessToken(decodedAccessToken);
+    if (!decodedAccessToken) {
+      return null;
+    }
+
+    const authenticatedUserAccessToken = {
+      authenticatedUser: {
+        userId: decodedAccessToken.user_id,
+        username: decodedAccessToken.preferred_username,
+        roles: decodedAccessToken.roles ? decodedAccessToken.roles : [],
+        administrator: decodedAccessToken.administrator,
+      },
+      decodedAccessToken,
+    };
+
+    return authenticatedUserAccessToken;
   }
 }

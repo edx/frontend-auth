@@ -57,7 +57,22 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
   }
 
   function ensureValidJWTCookie(axiosRequestConfig) {
-    return authenticatedAPIClient.accessToken.get().then(() => axiosRequestConfig);
+    return authenticatedAPIClient.accessToken.get()
+      .then((authenticatedUserAccessToken) => {
+        // If no callback is supplied frontend-auth will (ultimately) redirect the user to login.
+        // The user is redirected to logout to ensure authentication clean-up, which in turn
+        // redirects to login.
+        if (authenticatedUserAccessToken === null) {
+          authenticatedAPIClient.handleRefreshAccessTokenFailure(new Error('User is not authenticated'));
+        }
+
+        return axiosRequestConfig;
+      })
+      .catch((error) => {
+        // There were unexpected errors getting the access token.
+        authenticatedAPIClient.logout();
+        throw error;
+      });
   }
 
   // Log errors and info for unauthorized API responses

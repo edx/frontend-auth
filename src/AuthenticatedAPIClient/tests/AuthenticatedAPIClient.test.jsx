@@ -31,11 +31,6 @@ jest.mock('../AccessToken', () => {
 });
 const mockAccessToken = new AccessToken({});
 
-const emptyUserAccessToken = {
-  authenticatedUser: {},
-  decodedAccessToken: {},
-};
-
 // client is a singleton, so we need to store originals once before any mocking
 const client = getAuthenticatedAPIClient(authConfig);
 const originalGetDecodedAccessToken = client.getDecodedAccessToken;
@@ -152,7 +147,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
       const expectedRedirectUrl = encodeURIComponent(process.env.BASE_URL);
       const expectedLocation = `${loginUrl}?next=${expectedRedirectUrl}`;
       // eslint-disable-next-line prefer-promise-reject-errors
-      mockAccessToken.get.mockReturnValue(Promise.resolve(emptyUserAccessToken));
+      mockAccessToken.get.mockReturnValue(Promise.resolve(null));
 
       return client.ensureAuthenticatedUser('').finally(() => {
         expect(window.location.assign).toHaveBeenCalledWith(expectedLocation);
@@ -162,7 +157,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
     it('errors when no valid JWT after coming from login', async () => {
       jest.spyOn(global.document, 'referrer', 'get').mockReturnValue(process.env.LOGIN_URL);
       // eslint-disable-next-line prefer-promise-reject-errors
-      mockAccessToken.get.mockReturnValue(Promise.resolve(emptyUserAccessToken));
+      mockAccessToken.get.mockReturnValue(Promise.resolve(null));
 
       await expect(client.ensureAuthenticatedUser('')).rejects
         .toThrow(new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.'));
@@ -212,8 +207,6 @@ describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () =
   });
 
   it('rejects after calling unsuccessful get', () => {
-    mockAccessToken.value = null;
-    mockAccessToken.isExpired = true;
     mockAccessToken.get.mockReturnValue(Promise.reject());
     const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
     expect(mockAccessToken.get).toHaveBeenCalled();

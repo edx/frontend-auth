@@ -10,7 +10,9 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.loginUrl = authConfig.loginUrl;
   httpClient.logoutUrl = authConfig.logoutUrl;
   httpClient.refreshAccessTokenEndpoint = authConfig.refreshAccessTokenEndpoint;
-  httpClient.handleRefreshAccessTokenFailure = authConfig.handleRefreshAccessTokenFailure;
+  httpClient.handleRefreshAccessTokenFailure = authConfig.handleRefreshAccessTokenFailure
+    || (() => { httpClient.logout(); });
+
   httpClient.loggingService = authConfig.loggingService;
 
   httpClient.accessToken = new AccessToken({
@@ -32,10 +34,8 @@ export default function applyAuthInterface(httpClient, authConfig) {
    */
   httpClient.ensureAuthenticatedUser = route => new Promise((resolve, reject) => {
     httpClient.accessToken.get()
-      .then((authenticatedUserToken) => {
-        const userIsAuthenticated = authenticatedUserToken.authenticatedUser.userId !== undefined;
-
-        if (!userIsAuthenticated) {
+      .then((authenticatedUserAccessToken) => {
+        if (authenticatedUserAccessToken === null) {
           const isRedirectFromLoginPage = global.document.referrer &&
           global.document.referrer.startsWith(httpClient.loginUrl);
 
@@ -46,10 +46,10 @@ export default function applyAuthInterface(httpClient, authConfig) {
           httpClient.login(httpClient.appBaseUrl + route);
         }
 
-        resolve(authenticatedUserToken);
+        resolve(authenticatedUserAccessToken);
       })
       .catch((error) => {
-        // Unexpected errors getting the access token.
+        // There were unexpected errors getting the access token.
         httpClient.logout();
         reject(error);
       });
