@@ -10,8 +10,11 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.loginUrl = authConfig.loginUrl;
   httpClient.logoutUrl = authConfig.logoutUrl;
   httpClient.refreshAccessTokenEndpoint = authConfig.refreshAccessTokenEndpoint;
-  httpClient.handleRefreshAccessTokenFailure = authConfig.handleRefreshAccessTokenFailure
-    || (() => { httpClient.logout(); });
+  httpClient.handleRefreshAccessTokenFailure = authConfig.handleRefreshAccessTokenFailure || (() => {
+    // The user is redirected to logout to ensure authentication clean-up,
+    // which in turn redirects to login.
+    httpClient.logout();
+  });
 
   httpClient.loggingService = authConfig.loggingService;
 

@@ -42,6 +42,12 @@ beforeEach(() => {
   jest.spyOn(global.document, 'referrer', 'get').mockReturnValue('');
 });
 
+function expectLogout(redirectUrl = process.env.BASE_URL) {
+  const encodedRedirectUrl = encodeURIComponent(redirectUrl);
+  expect(window.location.assign)
+    .toHaveBeenCalledWith(`${process.env.LOGOUT_URL}?redirect_url=${encodedRedirectUrl}`);
+}
+
 function expectGetCsrfTokenToHaveBeenCalled() {
   expect(client.getCsrfToken).toHaveBeenCalled();
 }
@@ -99,7 +105,7 @@ describe('getAuthenticatedAPIClient', () => {
 describe('AuthenticatedAPIClient auth interface', () => {
   window.location.assign = jest.fn();
 
-  it('has method login', () => {
+  it('can redirect to login', () => {
     const loginUrl = process.env.LOGIN_URL;
     const expectedRedirectUrl = encodeURIComponent(process.env.BASE_URL);
     const expectedLocation = `${loginUrl}?next=${expectedRedirectUrl}`;
@@ -109,7 +115,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
     });
   });
 
-  it('has method logout', () => {
+  it('can redirect to logout', () => {
     const logoutUrl = process.env.LOGOUT_URL;
     const expectedRedirectUrl = encodeURIComponent(process.env.BASE_URL);
     const expectedLocation = `${logoutUrl}?redirect_url=${expectedRedirectUrl}`;
@@ -126,6 +132,10 @@ describe('AuthenticatedAPIClient auth interface', () => {
     client.get.mockReturnValueOnce(new Promise(resolve => resolve(mockResponse)));
     client.getCsrfToken();
     expect(client.get).toHaveBeenCalled();
+  });
+
+  it('has method handleRefreshAccessTokenFailure', () => {
+    expect(client.handleRefreshAccessTokenFailure).toBeInstanceOf(Function);
   });
 
   it('has method isCsrfExempt', () => {
@@ -200,9 +210,17 @@ describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () =
   });
 
   it('fulfills after calling get if the token is expired', () => {
-    mockAccessToken.get.mockReturnValue(Promise.resolve());
+    mockAccessToken.get.mockReturnValue(Promise.resolve({}));
     const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
     expect(mockAccessToken.get).toHaveBeenCalled();
+    return expect(fulfilledResult).resolves.toBeInstanceOf(Object);
+  });
+
+  it('fulfills and triggers a handler then get fails to refresh the token (user is logged out)', () => {
+    mockAccessToken.get.mockReturnValue(Promise.resolve(null));
+    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
+    expect(mockAccessToken.get).toHaveBeenCalled();
+    expectLogout();
     return expect(fulfilledResult).resolves.toBeInstanceOf(Object);
   });
 

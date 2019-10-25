@@ -61,34 +61,6 @@ describe('AccessToken', () => {
       const accessToken = new AccessToken({});
       expect(mockAxios.post).not.toHaveBeenCalled();
     });
-
-    it('Refreshes if existing jwt cookie token is expired on instantiation', () => {
-      mockCookies.get.mockReturnValue(encodedExpiredJwt);
-      mockAxios.post.mockImplementationOnce(() => {
-        mockCookies.get.mockReturnValue(encodedValidJwt);
-        return Promise.resolve();
-      });
-
-      const accessToken = new AccessToken({});
-
-      expect(mockAxios.post).toHaveBeenCalled();
-      return expect(accessToken.refreshRequestPromise).resolves.toEqual(validJwt);
-    });
-
-    it('Refreshes if no jwt cookie token exists on instantiation', () => {
-      mockCookies.get.mockReturnValue(undefined);
-      mockAxios.post.mockImplementationOnce(() => {
-        mockCookies.get.mockReturnValue(encodedValidJwt);
-        return Promise.resolve();
-      });
-
-      const accessToken = new AccessToken({});
-
-      return accessToken.refreshRequestPromise.then((result) => {
-        expect(mockAxios.post).toHaveBeenCalled();
-        expect(result).toEqual(validJwt);
-      });
-    });
   });
 
   describe('accessToken.get()', () => {
@@ -101,6 +73,27 @@ describe('AccessToken', () => {
       resetMocks();
       mockCookies.get.mockReturnValue(encodedValidJwt);
       mockAxios.post.mockImplementation(() => Promise.resolve());
+    });
+
+    it('fetches a new token if the current one is expired', () => {
+      mockCookies.get.mockReturnValue(encodedExpiredJwt);
+      mockAxios.post.mockImplementation(() => {
+        mockCookies.get.mockReturnValue(encodedValidJwt);
+        return Promise.resolve('responseValue');
+      });
+
+      return accessToken.get()
+        .then((result) => {
+          expect(result).toEqual(expect.objectContaining({
+            authenticatedUser: {
+              administrator: validJwt.administrator,
+              roles: [],
+              userId: validJwt.user_id,
+              username: validJwt.preferred_username,
+            },
+            decodedAccessToken: validJwt,
+          }));
+        });
     });
 
     it('makes a single request even if called multiple times in succession', () => {
@@ -134,6 +127,13 @@ describe('AccessToken', () => {
             axiosResponse: 'responseValue',
           });
         });
+    });
+
+    it('handles a rejected post to refresh the access token', () => {
+      mockCookies.get.mockReturnValue(undefined);
+      mockAxios.post.mockReturnValue(Promise.reject(new Error('failed')));
+
+      return expect(accessToken.get()).resolves.toEqual(null);
     });
 
     it('handles a failure to decode the jwt', () => {
