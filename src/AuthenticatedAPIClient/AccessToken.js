@@ -49,8 +49,17 @@ export default class AccessToken {
             resolve(decodedAccessToken);
           })
           .catch(() => {
-            // Resolve with whatever the current cookie value is
-            resolve(decodeJwtCookie(this.cookieName));
+            // In this case, we learn that the user is not authenticated.
+            // TODO: Network timeouts and other problems will end up in
+            // this block of code. We could add logic for retrying token
+            // refreshes if we wanted to.
+
+            // Clean up the cookie if it exists to eliminate any situation
+            // where the cookie is not expired but the jwt is expired.
+            cookies.remove(this.cookieName);
+
+            const decodedAccessToken = null;
+            resolve(decodedAccessToken);
           })
           .finally(() => {
             delete this.refreshRequestPromise;
