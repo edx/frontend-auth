@@ -1,8 +1,9 @@
-import PubSub from 'pubsub-js';
-import { NewRelicLoggingService } from '@edx/frontend-logging';
-
+/* eslint-disable arrow-body-style */
+import axios from 'axios';
+import Cookies from 'universal-cookie';
+import MockAdapter from 'axios-mock-adapter';
+import { NewRelicLoggingService, logInfo } from '@edx/frontend-logging';
 import AccessToken from '../AccessToken';
-import applyMockAuthInterface from './mockAuthInterface';
 import axiosConfig from '../axiosConfig';
 import getAuthenticatedAPIClient from '../index';
 
@@ -15,84 +16,81 @@ const authConfig = {
   loggingService: NewRelicLoggingService, // any concrete logging service will do
 };
 
-const yesterday = new Date();
-yesterday.setDate(yesterday.getDate() - 1);
-const tomorrow = new Date();
-tomorrow.setDate(tomorrow.getDate() + 1);
+// Set up mocks
+// ---------------------------------------------------------------
 
-jest.mock('../AccessToken', () => {
-  const mockAccessTokenInstance = {
-    value: undefined,
-    isExpired: true,
-    refresh: jest.fn(),
-    get: jest.fn(),
-  };
-  return () => mockAccessTokenInstance;
+const secondsInDay = 60 * 60 * 24;
+const yesterdayInSeconds = (Date.now() / 1000) - secondsInDay;
+const tomorrowInSeconds = (Date.now() / 1000) + secondsInDay;
+
+const jwtTokens = {
+  expired: {
+    decoded: {
+      user_id: '12345',
+      preferred_username: 'test',
+      administrator: false,
+      exp: yesterdayInSeconds,
+    },
+  },
+  valid: {
+    decoded: {
+      user_id: '12345',
+      preferred_username: 'test',
+      administrator: false,
+      exp: tomorrowInSeconds,
+    },
+  },
+  validWithRoles: {
+    decoded: {
+      user_id: '12345',
+      preferred_username: 'test',
+      administrator: true,
+      roles: ['role1', 'role2'],
+      exp: tomorrowInSeconds,
+    },
+  },
+};
+
+// encode mock JWT tokens
+Object.keys(jwtTokens).forEach((jwtTokenName) => {
+  const decodedJwt = jwtTokens[jwtTokenName].decoded;
+  jwtTokens[jwtTokenName].encoded = `header.${btoa(JSON.stringify(decodedJwt))}`;
 });
-const mockAccessToken = new AccessToken({});
 
-// client is a singleton, so we need to store originals once before any mocking
+const mockCsrfToken = 'thetokenvalue';
+
+window.location.assign = jest.fn();
+const mockCookies = new Cookies();
+
+// This sets the mock adapter on the default instance
+const mock = new MockAdapter(axios);
+mock.onGet('/401').reply(401);
+mock.onGet('/403').reply(403);
+mock.onGet(process.env.CSRF_TOKEN_REFRESH).reply(200, { csrfToken: mockCsrfToken });
+mock.onAny().reply(200);
+
+// This sets the mock adapter on the access token instance
+const accessTokenAxios = axios.create();
+const accessTokenAxiosMock = new MockAdapter(accessTokenAxios);
+accessTokenAxiosMock.onPost().reply(200);
+AccessToken.__Rewire__('httpClient', accessTokenAxios); // eslint-disable-line no-underscore-dangle
+
 const client = getAuthenticatedAPIClient(authConfig);
-const originalGetDecodedAccessToken = client.getDecodedAccessToken;
-const originalIsAccessTokenExpired = client.isAccessTokenExpired;
 
-beforeEach(() => {
-  client.getDecodedAccessToken = originalGetDecodedAccessToken;
-  client.isAccessTokenExpired = originalIsAccessTokenExpired;
-  jest.spyOn(global.document, 'referrer', 'get').mockReturnValue('');
-});
 
+// Helpers
 function expectLogout(redirectUrl = process.env.BASE_URL) {
   const encodedRedirectUrl = encodeURIComponent(redirectUrl);
   expect(window.location.assign)
     .toHaveBeenCalledWith(`${process.env.LOGOUT_URL}?redirect_url=${encodedRedirectUrl}`);
 }
 
-function expectGetCsrfTokenToHaveBeenCalled() {
-  expect(client.getCsrfToken).toHaveBeenCalled();
+function expectLogin(redirectUrl = process.env.BASE_URL) {
+  const encodedRedirectUrl = encodeURIComponent(redirectUrl);
+  expect(window.location.assign)
+    .toHaveBeenCalledWith(`${process.env.LOGIN_URL}?next=${encodedRedirectUrl}`);
 }
 
-function expectGetCsrfTokenToNotHaveBeenCalled() {
-  expect(client.getCsrfToken).not.toHaveBeenCalled();
-}
-
-function expectCsrfHeaderSet(request) {
-  expect(request.headers['X-CSRFToken']).toBe('test-csrf-token');
-}
-
-function testCsrfTokenInterceptorFulfillment(
-  isCsrfExempt,
-  method,
-  queueRequests,
-  csrfTokens,
-  expects,
-  expectHeaderSet,
-) {
-  it(`${expects.name} when isCsrfExempt=${isCsrfExempt} and method=${method} and queueRequests=${queueRequests} and csrfTokens=${JSON.stringify(csrfTokens)}`, () => {
-    applyMockAuthInterface(client);
-    client.isCsrfExempt.mockReturnValue(isCsrfExempt);
-    /* eslint-disable no-underscore-dangle */
-    axiosConfig.__Rewire__('queueRequests', queueRequests);
-    axiosConfig.__Rewire__('csrfTokens', csrfTokens);
-    /* eslint-enable no-underscore-dangle */
-    const fulfilledResult = client.interceptors.request.handlers[0].fulfilled({
-      url: 'https://testserver.org',
-      method,
-      headers: {},
-    });
-    expects(client);
-
-    if (expectHeaderSet) {
-      if (client.getCsrfToken.mock.calls.length || queueRequests) {
-        fulfilledResult.then((request) => {
-          expectCsrfHeaderSet(request);
-        });
-      } else {
-        expectCsrfHeaderSet(fulfilledResult);
-      }
-    }
-  });
-}
 
 describe('getAuthenticatedAPIClient', () => {
   it('returns a singleton', () => {
@@ -100,199 +98,261 @@ describe('getAuthenticatedAPIClient', () => {
     const client2 = getAuthenticatedAPIClient(authConfig);
     expect(client2).toBe(client1);
   });
+
+  describe('User makes request', () => {
+    describe('is logged in', () => {
+      describe('a get request', () => {
+        beforeEach(() => {
+          accessTokenAxiosMock.onPost().reply(200);
+          accessTokenAxiosMock.resetHistory();
+          mockCookies.get.mockReset();
+          window.location.assign.mockReset();
+        });
+
+        it('refreshes the token when none is found', () => {
+          mockCookies.get.mockReturnValueOnce(null);
+          mockCookies.get.mockReturnValueOnce(jwtTokens.valid.encoded);
+          return client.get('a/url').then(() => {
+            expect(accessTokenAxiosMock.history.post.length).toBe(1);
+          });
+        });
+
+        it('refreshes the token when an expired one is found', () => {
+          mockCookies.get.mockReturnValueOnce(jwtTokens.expired.encoded);
+          mockCookies.get.mockReturnValueOnce(jwtTokens.valid.encoded);
+          return client.get('a/url').then(() => {
+            expect(accessTokenAxiosMock.history.post.length).toBe(1);
+          });
+        });
+
+        it('does not attempt to refresh the token when a valid one is found', () => {
+          mockCookies.get.mockReturnValue(jwtTokens.valid.encoded);
+          return client.get('a/url').then(() => {
+            expect(accessTokenAxiosMock.history.post.length).toBe(0);
+          });
+        });
+
+        it('refreshes the token once for multiple outgoing requests', () => {
+          mockCookies.get
+            .mockReturnValueOnce(null)
+            .mockReturnValueOnce(null)
+            .mockReturnValue(jwtTokens.valid.encoded);
+
+          return Promise.all([
+            client.get('a/url'),
+            client.get('a/url'),
+          ]).then(() => {
+            expect(accessTokenAxiosMock.history.post.length).toBe(1);
+          });
+        });
+
+        it('throws an error and redirects if the refresh request succeeds but there is no new cookie delivered', () => {
+          mockCookies.get.mockReturnValue(null);
+          expect.assertions(3);
+          return client.get('a/url').catch((error) => {
+            expect(error.message).toEqual('Access token is still null after successful refresh.');
+            expect(accessTokenAxiosMock.history.post.length).toBe(1);
+            expect(window.location.assign).toHaveBeenCalled();
+          });
+        });
+
+        it('throws an error and redirects if the refresh request succeeds but the cookie is malformed', () => {
+          mockCookies.get.mockReturnValue('This is a malformed jwt');
+          expect.assertions(3);
+          return client.get('a/url').catch((error) => {
+            // TOOD: this error should be truer. Right now the token is not null.
+            expect(error.message).toEqual('Access token is still null after successful refresh.');
+            expect(accessTokenAxiosMock.history.post.length).toBe(1);
+            expect(window.location.assign).toHaveBeenCalled();
+          });
+        });
+
+
+        describe('logging for api errors', () => {
+          beforeEach(() => {
+            logInfo.mockReset();
+            accessTokenAxiosMock.onPost().reply(200);
+            accessTokenAxiosMock.resetHistory();
+            mockCookies.get.mockReset();
+            mockCookies.get.mockReturnValue(jwtTokens.valid.encoded);
+          });
+
+          it('logs info for 401 unauthorized api responses', () => {
+            expect.assertions(1);
+            return client.get('/401').catch(() => {
+              expect(logInfo).toHaveBeenCalledWith('Unauthorized API response from /401');
+            });
+          });
+
+          it('logs info for 403 forbidden api responses', () => {
+            expect.assertions(1);
+            return client.get('/403').catch(() => {
+              expect(logInfo).toHaveBeenCalledWith('Forbidden API response from /403');
+            });
+          });
+        });
+      });
+
+      describe('a post request', () => {
+        beforeEach(() => {
+          window.location.assign.mockReset();
+          mockCookies.get.mockReset();
+          mock.resetHistory();
+          axiosConfig.__Rewire__('csrfTokens', {}); // eslint-disable-line no-underscore-dangle
+          accessTokenAxiosMock.resetHistory();
+          accessTokenAxiosMock.onPost().reply(200);
+          mockCookies.get.mockReturnValueOnce(null);
+          mockCookies.get.mockReturnValue(jwtTokens.valid.encoded);
+        });
+
+        it('gets a csrf token and adds it to the request', () => {
+          return client.post('a/url').then(() => {
+            expect(accessTokenAxiosMock.history.post.length).toBe(1);
+            expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+          });
+        });
+
+        it('uses an already fetched csrf token and adds it to the request', () => {
+          return client.post('a/url')
+            .then(() => client.post('a/url'))
+            .then(() => {
+              expect(accessTokenAxiosMock.history.post.length).toBe(1);
+              expect(mock.history.get.length).toBe(1); // The CSRF fetch
+              expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+              expect(mock.history.post[1].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+            });
+        });
+
+        it('refreshes the csrf token once for multiple outgoing requests', () => {
+          return Promise.all([
+            client.post('a/url'),
+            client.post('a/url'),
+          ]).then(() => {
+            expect(accessTokenAxiosMock.history.post.length).toBe(1);
+            expect(mock.history.get.length).toBe(1); // The CSRF token fetch
+            expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+            expect(mock.history.post[1].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+          });
+        });
+      });
+    });
+
+    describe('is not logged in', () => {
+      describe('a get request', () => {
+        beforeEach(() => {
+          accessTokenAxiosMock.onPost().reply(401);
+          accessTokenAxiosMock.resetHistory();
+          mockCookies.get.mockReset();
+          window.location.assign.mockReset();
+          jest.spyOn(client, 'login');
+        });
+
+        it('redirects to login when no token exists and refreshing fails', () => {
+          mockCookies.get.mockReturnValue(null);
+          return client.get('a/url').then(() => {
+            expect(accessTokenAxiosMock.history.post.length).toBe(1);
+            expectLogin();
+          });
+        });
+
+        it('redirects to login when an expired token exists and refreshing fails', () => {
+          mockCookies.get.mockReturnValue(jwtTokens.expired.encoded);
+          return client.get('a/url').then(() => {
+            expect(accessTokenAxiosMock.history.post.length).toBe(1);
+            expectLogin();
+          });
+        });
+      });
+    });
+  });
 });
 
 describe('AuthenticatedAPIClient auth interface', () => {
-  window.location.assign = jest.fn();
+  beforeEach(() => {
+    window.location.assign.mockReset();
+  });
 
   it('can redirect to login', () => {
-    const loginUrl = process.env.LOGIN_URL;
-    const expectedRedirectUrl = encodeURIComponent(process.env.BASE_URL);
-    const expectedLocation = `${loginUrl}?next=${expectedRedirectUrl}`;
-    [process.env.BASE_URL, undefined].forEach((redirectUrl) => {
-      client.login(redirectUrl);
-      expect(window.location.assign).toHaveBeenCalledWith(expectedLocation);
-    });
+    client.login('http://edx.org/dashboard');
+    expectLogin('http://edx.org/dashboard');
+
+    client.login();
+    expectLogin(process.env.BASE_URL);
   });
 
   it('can redirect to logout', () => {
-    const logoutUrl = process.env.LOGOUT_URL;
-    const expectedRedirectUrl = encodeURIComponent(process.env.BASE_URL);
-    const expectedLocation = `${logoutUrl}?redirect_url=${expectedRedirectUrl}`;
-    [process.env.BASE_URL, undefined].forEach((redirectUrl) => {
-      client.logout(redirectUrl);
-      expect(window.location.assign).toHaveBeenCalledWith(expectedLocation);
-    });
-  });
+    client.logout('http://edx.org/');
+    expectLogout('http://edx.org/');
 
-  it('has method getCsrfToken', () => {
-    client.get = jest.fn();
-    const mockResponse = {};
-
-    client.get.mockReturnValueOnce(new Promise(resolve => resolve(mockResponse)));
-    client.getCsrfToken();
-    expect(client.get).toHaveBeenCalled();
-  });
-
-  it('has method handleRefreshAccessTokenFailure', () => {
-    expect(client.handleRefreshAccessTokenFailure).toBeInstanceOf(Function);
-  });
-
-  it('has method isCsrfExempt', () => {
-    const csrfExemptUrl = process.env.REFRESH_ACCESS_TOKEN_ENDPOINT;
-    const nonCsrfExemptUrl = 'http://example.com';
-    expect(client.isCsrfExempt(csrfExemptUrl)).toBe(true);
-    expect(client.isCsrfExempt(nonCsrfExemptUrl)).toBe(false);
+    client.logout();
+    expectLogout(process.env.BASE_URL);
   });
 
   describe('ensureAuthenticatedUser', () => {
-    beforeEach(() => {
-      mockAccessToken.value = undefined;
-      mockAccessToken.refresh.mockReset();
-      window.location.assign.mockReset();
-    });
+    describe('user is logged in', () => {
+      beforeEach(() => {
+        accessTokenAxiosMock.onPost().reply(200);
+        accessTokenAxiosMock.resetHistory();
+        mockCookies.get.mockReset();
+        window.location.assign.mockReset();
+      });
 
-    it('redirects to login when no valid JWT', () => {
-      const loginUrl = process.env.LOGIN_URL;
-      const expectedRedirectUrl = encodeURIComponent(process.env.BASE_URL);
-      const expectedLocation = `${loginUrl}?next=${expectedRedirectUrl}`;
-      // eslint-disable-next-line prefer-promise-reject-errors
-      mockAccessToken.get.mockReturnValue(Promise.resolve(null));
+      it('refreshes a missing jwt token and returns a user access token', () => {
+        mockCookies.get.mockReturnValueOnce(null);
+        mockCookies.get.mockReturnValueOnce(jwtTokens.valid.encoded);
+        return client.ensureAuthenticatedUser().then((authenticatedUserAccessToken) => {
+          expect(authenticatedUserAccessToken.decodedAccessToken).toEqual(jwtTokens.valid.decoded);
+          expect(accessTokenAxiosMock.history.post.length).toBe(1);
+        });
+      });
 
-      return client.ensureAuthenticatedUser('').finally(() => {
-        expect(window.location.assign).toHaveBeenCalledWith(expectedLocation);
+      it('refreshes a missing jwt token and returns a user access token with roles', () => {
+        mockCookies.get.mockReturnValueOnce(null);
+        mockCookies.get.mockReturnValueOnce(jwtTokens.validWithRoles.encoded);
+        return client.ensureAuthenticatedUser().then((authenticatedUserAccessToken) => {
+          expect(authenticatedUserAccessToken.decodedAccessToken).toEqual(jwtTokens.validWithRoles.decoded);
+          expect(accessTokenAxiosMock.history.post.length).toBe(1);
+        });
+      });
+
+      it('throws and error and redirects to logout if there was a problem getting the jwt cookie', () => {
+        mockCookies.get.mockReturnValue(null);
+        expect.assertions(3);
+        return client.ensureAuthenticatedUser().catch((error) => {
+          expect(accessTokenAxiosMock.history.post.length).toBe(1);
+          expect(window.location.assign).toHaveBeenCalled();
+          expect(error.message).toEqual('Access token is still null after successful refresh.');
+        });
       });
     });
 
-    it('errors when no valid JWT after coming from login', async () => {
-      jest.spyOn(global.document, 'referrer', 'get').mockReturnValue(process.env.LOGIN_URL);
-      // eslint-disable-next-line prefer-promise-reject-errors
-      mockAccessToken.get.mockReturnValue(Promise.resolve(null));
+    describe('user is logged out', () => {
+      beforeEach(() => {
+        accessTokenAxiosMock.onPost().reply(401);
+        accessTokenAxiosMock.resetHistory();
+        mockCookies.get.mockReset();
+        window.location.assign.mockReset();
+      });
 
-      await expect(client.ensureAuthenticatedUser('')).rejects
-        .toThrow(new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.'));
-    });
+      it('attempts to refresh a missing jwt token and returns null if the user is logged out', () => {
+        mockCookies.get.mockReturnValue(null);
+        return client.ensureAuthenticatedUser('/route').then((authenticatedUserAccessToken) => {
+          expect(authenticatedUserAccessToken).toBeNull();
+          expect(accessTokenAxiosMock.history.post.length).toBe(1);
+          expectLogin(`${process.env.BASE_URL}/route`);
+        });
+      });
 
-    it('promise resolves to access token', async () => {
-      const expectedValue = {
-        authenticatedUser: {
-          userId: 'test',
-        },
-        decodedAccessToken: {},
-        anything: 'any value returned by access token',
-      };
-      mockAccessToken.get.mockReturnValue(Promise.resolve(expectedValue));
-
-      return expect(client.ensureAuthenticatedUser('')).resolves.toEqual(expectedValue);
-    });
-
-    it('logs out and redirects if there is an unexpected problem refreshing the jwt cookie', async () => {
-      jest.spyOn(client, 'logout');
-      mockAccessToken.get.mockReturnValue(Promise.reject());
-      return client.ensureAuthenticatedUser('').catch(() => {
-        expect(client.logout).toHaveBeenCalled();
-        client.logout.mockRestore();
+      it('throws an error and does not redirect if the referrer is login user is logged out', () => {
+        jest.spyOn(global.document, 'referrer', 'get').mockReturnValue(process.env.LOGIN_URL);
+        expect.assertions(3);
+        mockCookies.get.mockReturnValue(null);
+        return client.ensureAuthenticatedUser().catch((error) => {
+          expect(accessTokenAxiosMock.history.post.length).toBe(1);
+          expect(window.location.assign).not.toHaveBeenCalled();
+          expect(error.message).toEqual('Redirect from login page. Rejecting to avoid infinite redirect loop.');
+        });
       });
     });
-  });
-});
-
-describe('AuthenticatedAPIClient request headers', () => {
-  it('should contain USE-JWT-COOKIE', () => {
-    expect(client.defaults.headers.common['USE-JWT-COOKIE']).toBe(true);
-  });
-});
-
-describe('AuthenticatedAPIClient ensureValidJWTCookie request interceptor', () => {
-  beforeEach(() => {
-    PubSub.clearAllSubscriptions();
-    mockAccessToken.get.mockReset();
-  });
-
-  it('fulfills after calling get if the token is expired', () => {
-    mockAccessToken.get.mockReturnValue(Promise.resolve({}));
-    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
-    expect(mockAccessToken.get).toHaveBeenCalled();
-    return expect(fulfilledResult).resolves.toBeInstanceOf(Object);
-  });
-
-  it('fulfills and triggers a handler then get fails to refresh the token (user is logged out)', () => {
-    mockAccessToken.get.mockReturnValue(Promise.resolve(null));
-    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
-    expect(mockAccessToken.get).toHaveBeenCalled();
-    expectLogout();
-    return expect(fulfilledResult).resolves.toBeInstanceOf(Object);
-  });
-
-  it('rejects after calling unsuccessful get', () => {
-    mockAccessToken.get.mockReturnValue(Promise.reject());
-    const fulfilledResult = client.interceptors.request.handlers[1].fulfilled({});
-    expect(mockAccessToken.get).toHaveBeenCalled();
-    return expect(fulfilledResult).rejects.toBeUndefined();
-  });
-
-  it('returns error if it is rejected', () => {
-    const error = new Error('It failed!');
-    client.interceptors.request.handlers[0].rejected(error)
-      .catch((rejection) => {
-        expect(rejection).toBe(error);
-      });
-  });
-});
-
-describe('AuthenticatedAPIClient ensureCsrfToken request interceptor', () => {
-  [
-    /* isCsrfExempt, method, queueRequests, csrfTokens, expects, expectHeaderSet */
-    [false, 'POST', false, {}, expectGetCsrfTokenToHaveBeenCalled, true],
-    [false, 'POST', true, {}, expectGetCsrfTokenToNotHaveBeenCalled, true],
-    [false, 'POST', false, { 'testserver.org': 'test-csrf-token' }, expectGetCsrfTokenToNotHaveBeenCalled, true],
-    [true, 'POST', false, {}, expectGetCsrfTokenToNotHaveBeenCalled, false],
-    [false, 'GET', false, {}, expectGetCsrfTokenToNotHaveBeenCalled, false],
-    [true, 'GET', false, {}, expectGetCsrfTokenToNotHaveBeenCalled, false],
-  ].forEach((mockValues) => {
-    testCsrfTokenInterceptorFulfillment(...mockValues);
-  });
-
-  it('returns error if it is rejected', () => {
-    const error = new Error('It failed!');
-    client.interceptors.request.handlers[1].rejected(error)
-      .catch((rejection) => {
-        expect(rejection).toBe(error);
-      });
-  });
-});
-
-describe('AuthenticatedAPIClient response interceptor', () => {
-  it('returns error if it fails with 401', () => {
-    const errorResponse = { response: { status: 401, data: 'it failed' } };
-    client.interceptors.response.handlers[0].rejected(errorResponse)
-      .catch((promiseError) => {
-        expect(promiseError).toBe(errorResponse);
-      });
-  });
-  it('returns error if token refresh fails with 401', () => {
-    const errorResponse = {
-      response: {
-        status: 401,
-        data: 'it failed',
-        config: { url: authConfig.refreshAccessTokenEndpoint },
-      },
-    };
-    client.interceptors.response.handlers[0].rejected(errorResponse)
-      .catch((promiseError) => {
-        expect(promiseError).toBe(errorResponse);
-      });
-  });
-  it('returns error if it fails with 403', () => {
-    const errorResponse = { response: { status: 403, data: 'it failed' } };
-    client.interceptors.response.handlers[0].rejected(errorResponse)
-      .catch((promiseError) => {
-        expect(promiseError).toBe(errorResponse);
-      });
-  });
-  it('returns response if it is fulfilled', () => {
-    const response = { data: 'It worked!' };
-    const result = client.interceptors.response.handlers[0].fulfilled(response);
-    expect(result).toBe(response);
   });
 });

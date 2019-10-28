@@ -81,7 +81,7 @@ export default class AccessToken {
       return null;
     }
 
-    const authenticatedUserAccessToken = {
+    const authenticatedUserAndAccessToken = {
       authenticatedUser: {
         userId: decodedAccessToken.user_id,
         username: decodedAccessToken.preferred_username,
@@ -91,6 +91,6 @@ export default class AccessToken {
       decodedAccessToken,
     };
 
-    return authenticatedUserAccessToken;
+    return authenticatedUserAndAccessToken;
   }
 }

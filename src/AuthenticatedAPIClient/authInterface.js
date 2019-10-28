@@ -11,9 +11,7 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.logoutUrl = authConfig.logoutUrl;
   httpClient.refreshAccessTokenEndpoint = authConfig.refreshAccessTokenEndpoint;
   httpClient.handleRefreshAccessTokenFailure = authConfig.handleRefreshAccessTokenFailure || (() => {
-    // The user is redirected to logout to ensure authentication clean-up,
-    // which in turn redirects to login.
-    httpClient.logout();
+    httpClient.login();
   });
 
   httpClient.loggingService = authConfig.loggingService;
@@ -44,9 +42,10 @@ export default function applyAuthInterface(httpClient, authConfig) {
 
           if (isRedirectFromLoginPage) {
             reject(new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.'));
+          } else {
+            // The user is not authenticated, send them to the login page.
+            httpClient.login(httpClient.appBaseUrl + route);
           }
-          // The user is not authenticated, send them to the login page.
-          httpClient.login(httpClient.appBaseUrl + route);
         }
 
         resolve(authenticatedUserAccessToken);

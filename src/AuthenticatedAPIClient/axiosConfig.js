@@ -77,15 +77,10 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
     const response = error && error.response;
     const errorStatus = response && response.status;
     const requestUrl = response && response.config && response.config.url;
-    const requestIsTokenRefresh = requestUrl === authenticatedAPIClient.refreshAccessTokenEndpoint;
 
     switch (errorStatus) { // eslint-disable-line default-case
       case 401:
-        if (requestIsTokenRefresh) {
-          logInfo(`Unauthorized token refresh response from ${requestUrl}. This is expected if the user is not yet logged in.`);
-        } else {
-          logInfo(`Unauthorized API response from ${requestUrl}`);
-        }
+        logInfo(`Unauthorized API response from ${requestUrl}`);
         break;
       case 403:
         logInfo(`Forbidden API response from ${requestUrl}`);
