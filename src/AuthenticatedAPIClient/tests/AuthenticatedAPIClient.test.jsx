@@ -341,7 +341,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
     });
 
     it('attempts to refresh a missing jwt token and returns null if the user is logged out', () => {
-      mockCookies.get.mockReturnValue(null);
+      setJwtCookieTo(null);
       return client.ensureAuthenticatedUser('/route').then((authenticatedUserAccessToken) => {
         expect(authenticatedUserAccessToken).toBeNull();
         expectSingleCallToJwtTokenRefresh();
@@ -352,7 +352,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
     it('throws an error and does not redirect if the referrer is login user is logged out', () => {
       jest.spyOn(global.document, 'referrer', 'get').mockReturnValue(process.env.LOGIN_URL);
       expect.assertions(3);
-      mockCookies.get.mockReturnValue(null);
+      setJwtCookieTo(null);
       return client.ensureAuthenticatedUser().catch((error) => {
         expectSingleCallToJwtTokenRefresh();
         expect(window.location.assign).not.toHaveBeenCalled();
