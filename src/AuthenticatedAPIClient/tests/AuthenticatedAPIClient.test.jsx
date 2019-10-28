@@ -110,16 +110,20 @@ describe('getAuthenticatedAPIClient', () => {
         });
 
         it('refreshes the token when none is found', () => {
-          mockCookies.get.mockReturnValueOnce(null);
-          mockCookies.get.mockReturnValueOnce(jwtTokens.valid.encoded);
+          mockCookies.get
+            .mockReturnValueOnce(null)
+            .mockReturnValueOnce(jwtTokens.valid.encoded);
+
           return client.get('a/url').then(() => {
             expect(accessTokenAxiosMock.history.post.length).toBe(1);
           });
         });
 
         it('refreshes the token when an expired one is found', () => {
-          mockCookies.get.mockReturnValueOnce(jwtTokens.expired.encoded);
-          mockCookies.get.mockReturnValueOnce(jwtTokens.valid.encoded);
+          mockCookies.get
+            .mockReturnValueOnce(jwtTokens.expired.encoded)
+            .mockReturnValueOnce(jwtTokens.valid.encoded);
+
           return client.get('a/url').then(() => {
             expect(accessTokenAxiosMock.history.post.length).toBe(1);
           });
@@ -201,8 +205,9 @@ describe('getAuthenticatedAPIClient', () => {
           axiosConfig.__Rewire__('csrfTokens', {}); // eslint-disable-line no-underscore-dangle
           accessTokenAxiosMock.resetHistory();
           accessTokenAxiosMock.onPost().reply(200);
-          mockCookies.get.mockReturnValueOnce(null);
-          mockCookies.get.mockReturnValue(jwtTokens.valid.encoded);
+          mockCookies.get
+            .mockReturnValueOnce(null)
+            .mockReturnValue(jwtTokens.valid.encoded);
         });
 
         it('gets a csrf token and adds it to the request', () => {
@@ -298,8 +303,9 @@ describe('AuthenticatedAPIClient auth interface', () => {
       });
 
       it('refreshes a missing jwt token and returns a user access token', () => {
-        mockCookies.get.mockReturnValueOnce(null);
-        mockCookies.get.mockReturnValueOnce(jwtTokens.valid.encoded);
+        mockCookies.get
+          .mockReturnValueOnce(null)
+          .mockReturnValueOnce(jwtTokens.valid.encoded);
         return client.ensureAuthenticatedUser().then((authenticatedUserAccessToken) => {
           expect(authenticatedUserAccessToken.decodedAccessToken).toEqual(jwtTokens.valid.decoded);
           expect(accessTokenAxiosMock.history.post.length).toBe(1);
@@ -307,8 +313,9 @@ describe('AuthenticatedAPIClient auth interface', () => {
       });
 
       it('refreshes a missing jwt token and returns a user access token with roles', () => {
-        mockCookies.get.mockReturnValueOnce(null);
-        mockCookies.get.mockReturnValueOnce(jwtTokens.validWithRoles.encoded);
+        mockCookies.get
+          .mockReturnValueOnce(null)
+          .mockReturnValueOnce(jwtTokens.validWithRoles.encoded);
         return client.ensureAuthenticatedUser().then((authenticatedUserAccessToken) => {
           expect(authenticatedUserAccessToken.decodedAccessToken).toEqual(jwtTokens.validWithRoles.decoded);
           expect(accessTokenAxiosMock.history.post.length).toBe(1);
