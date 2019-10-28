@@ -1,4 +1,5 @@
 import AccessToken from './AccessToken';
+import CsrfTokensManager from './CsrfTokensManager';
 
 // Apply the auth-related properties and functions to the Axios API client.
 export default function applyAuthInterface(httpClient, authConfig) {
@@ -6,10 +7,8 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.appBaseUrl = authConfig.appBaseUrl;
   httpClient.authBaseUrl = authConfig.authBaseUrl;
   httpClient.userInfoCookieName = authConfig.userInfoCookieName;
-  httpClient.csrfTokenApiPath = authConfig.csrfTokenApiPath;
   httpClient.loginUrl = authConfig.loginUrl;
   httpClient.logoutUrl = authConfig.logoutUrl;
-  httpClient.refreshAccessTokenEndpoint = authConfig.refreshAccessTokenEndpoint;
   httpClient.handleRefreshAccessTokenFailure = authConfig.handleRefreshAccessTokenFailure || (() => {
     httpClient.login();
   });
@@ -20,12 +19,9 @@ export default function applyAuthInterface(httpClient, authConfig) {
     cookieName: authConfig.accessTokenCookieName,
     refreshEndpoint: authConfig.refreshAccessTokenEndpoint,
   });
-
-  /**
-   * We will not try to retrieve a CSRF token before
-   * making requests to these CSRF-exempt URLS.
-   */
-  httpClient.csrfExemptUrls = [httpClient.refreshAccessTokenEndpoint];
+  httpClient.csrfTokens = new CsrfTokensManager({
+    csrfTokenApiPath: authConfig.csrfTokenApiPath,
+  });
 
   /**
    * Ensures a user is authenticated, including redirecting to login when not authenticated.
@@ -64,9 +60,4 @@ export default function applyAuthInterface(httpClient, authConfig) {
   httpClient.logout = (redirectUrl = authConfig.appBaseUrl) => {
     global.location.assign(`${httpClient.logoutUrl}?redirect_url=${encodeURIComponent(redirectUrl)}`);
   };
-
-  httpClient.getCsrfToken = (apiProtocol, apiHost) =>
-    httpClient.get(`${apiProtocol}//${apiHost}${httpClient.csrfTokenApiPath}`);
-
-  httpClient.isCsrfExempt = url => httpClient.csrfExemptUrls.includes(url);
 }

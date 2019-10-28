@@ -4,7 +4,7 @@ import Cookies from 'universal-cookie';
 import MockAdapter from 'axios-mock-adapter';
 import { NewRelicLoggingService, logInfo } from '@edx/frontend-logging';
 import AccessToken from '../AccessToken';
-import axiosConfig from '../axiosConfig';
+import CsrfTokensManager from '../CsrfTokensManager';
 import getAuthenticatedAPIClient from '../index';
 
 const authConfig = {
@@ -59,6 +59,7 @@ Object.keys(jwtTokens).forEach((jwtTokenName) => {
 });
 
 const mockCsrfToken = 'thetokenvalue';
+const mockApiEndpointPath = `${process.env.BASE_URL}/api/v1/test`;
 
 window.location.assign = jest.fn();
 const mockCookies = new Cookies();
@@ -70,21 +71,16 @@ mock.onGet('/403').reply(403);
 mock.onGet(process.env.CSRF_TOKEN_REFRESH).reply(200, { csrfToken: mockCsrfToken });
 mock.onAny().reply(200);
 
-// This sets the mock adapter on the access token instance
 const accessTokenAxios = axios.create();
 const accessTokenAxiosMock = new MockAdapter(accessTokenAxios);
-const createAccessTokenResponse = (status, jwtCookieResponse = null) => {
-  const fn = () => {
-    mockCookies.get.mockReturnValue(jwtCookieResponse);
-    return [status];
-  };
-  return fn;
-};
-accessTokenAxiosMock.onPost().reply(createAccessTokenResponse(jwtTokens.valid.encoded));
 AccessToken.__Rewire__('httpClient', accessTokenAxios); // eslint-disable-line no-underscore-dangle
 
-const client = getAuthenticatedAPIClient(authConfig);
+const csrfTokensManagerAxios = axios.create();
+const csrfTokensManagerAxiosMock = new MockAdapter(csrfTokensManagerAxios);
+CsrfTokensManager.__Rewire__('httpClient', csrfTokensManagerAxios); // eslint-disable-line no-underscore-dangle
 
+
+const client = getAuthenticatedAPIClient(authConfig);
 
 // Helpers
 const setJwtCookieTo = (jwtCookieValue) => {
@@ -119,28 +115,27 @@ const expectNoCallToJwtTokenRefresh = () => {
 };
 
 const expectSingleCallToCsrfTokenFetch = () => {
-  const csrfRequests = mock.history.get
-    .filter(({ url }) => url.includes(authConfig.csrfTokenApiPath));
-  expect(csrfRequests.length).toBe(1);
+  expect(csrfTokensManagerAxiosMock.history.get.length).toBe(1);
 };
 
 const expectNoCallToCsrfTokenFetch = () => {
-  const csrfRequests = mock.history.get
-    .filter(({ url }) => url.includes(authConfig.csrfTokenApiPath));
-  expect(csrfRequests.length).toBe(0);
+  expect(csrfTokensManagerAxiosMock.history.get.length).toBe(0);
 };
 
 beforeEach(() => {
   mock.reset();
   accessTokenAxiosMock.reset();
+  csrfTokensManagerAxiosMock.reset();
   mockCookies.get.mockReset();
   window.location.assign.mockReset();
   logInfo.mockReset();
-  axiosConfig.__Rewire__('csrfTokens', {}); // eslint-disable-line no-underscore-dangle
+  CsrfTokensManager.__Rewire__('csrfTokens', {}); // eslint-disable-line no-underscore-dangle
   mock.onGet('/401').reply(401);
   mock.onGet('/403').reply(403);
-  mock.onGet(process.env.CSRF_TOKEN_REFRESH).reply(200, { csrfToken: mockCsrfToken });
   mock.onAny().reply(200);
+  csrfTokensManagerAxiosMock
+    .onGet(process.env.CSRF_TOKEN_REFRESH)
+    .reply(200, { csrfToken: mockCsrfToken });
 });
 
 describe('getAuthenticatedAPIClient', () => {
@@ -155,7 +150,7 @@ describe('A GET request when the user is logged in ', () => {
   it('refreshes the token when none is found', () => {
     setJwtCookieTo(null);
     setJwtTokenRefreshResponseTo(200, jwtTokens.valid.encoded);
-    return client.get('a/url').then(() => {
+    return client.get(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
     });
@@ -164,7 +159,7 @@ describe('A GET request when the user is logged in ', () => {
   it('refreshes the token when an expired one is found', () => {
     setJwtCookieTo(jwtTokens.expired.encoded);
     setJwtTokenRefreshResponseTo(200, jwtTokens.valid.encoded);
-    return client.get('a/url').then(() => {
+    return client.get(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
     });
@@ -172,7 +167,7 @@ describe('A GET request when the user is logged in ', () => {
 
   it('does not attempt to refresh the token when a valid one is found', () => {
     setJwtCookieTo(jwtTokens.valid.encoded);
-    return client.get('a/url').then(() => {
+    return client.get(mockApiEndpointPath).then(() => {
       expectNoCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
     });
@@ -181,7 +176,7 @@ describe('A GET request when the user is logged in ', () => {
   it('refreshes the token only once for multiple outgoing requests', () => {
     setJwtCookieTo(null);
     setJwtTokenRefreshResponseTo(200, jwtTokens.valid.encoded);
-    return Promise.all([client.get('a/url'), client.get('a/url')])
+    return Promise.all([client.get(mockApiEndpointPath), client.get(mockApiEndpointPath)])
       .then(() => {
         expectSingleCallToJwtTokenRefresh();
         expectNoCallToCsrfTokenFetch();
@@ -192,7 +187,7 @@ describe('A GET request when the user is logged in ', () => {
     setJwtCookieTo(null);
     setJwtTokenRefreshResponseTo(200, null);
     expect.assertions(4);
-    return client.get('a/url').catch((error) => {
+    return client.get(mockApiEndpointPath).catch((error) => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
       expect(error.message).toEqual('Access token is still null after successful refresh.');
@@ -204,7 +199,7 @@ describe('A GET request when the user is logged in ', () => {
     setJwtCookieTo(null);
     setJwtTokenRefreshResponseTo(200, 'a malformed jwt');
     expect.assertions(4);
-    return client.get('a/url').catch((error) => {
+    return client.get(mockApiEndpointPath).catch((error) => {
       // TODO: this error should be truer. Right now the token is not null.
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
@@ -237,15 +232,15 @@ describe('A POST request when the user is logged in ', () => {
   });
 
   it('gets a csrf token and adds it to the request', () => {
-    return client.post('a/url').then(() => {
+    return client.post(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
     });
   });
 
   it('uses an already fetched csrf token and adds it to the request', () => {
-    return client.post('a/url')
-      .then(() => client.post('a/url'))
+    return client.post(mockApiEndpointPath)
+      .then(() => client.post(mockApiEndpointPath))
       .then(() => {
         expectSingleCallToJwtTokenRefresh();
         expectSingleCallToCsrfTokenFetch();
@@ -256,14 +251,25 @@ describe('A POST request when the user is logged in ', () => {
 
   it('refreshes the csrf token once for multiple outgoing requests', () => {
     return Promise.all([
-      client.post('a/url'),
-      client.post('a/url'),
+      client.post(mockApiEndpointPath),
+      client.post(mockApiEndpointPath),
     ]).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectSingleCallToCsrfTokenFetch();
       expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
       expect(mock.history.post[1].headers['X-CSRFToken']).toEqual(mockCsrfToken);
     });
+  });
+
+  it('fetches a csrf token from the host in the BASE_URL if the url is a path', () => {
+    return client.post('/path/endpoint')
+      .then(() => {
+        expectSingleCallToJwtTokenRefresh();
+        expectSingleCallToCsrfTokenFetch();
+        expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+        expect(csrfTokensManagerAxiosMock.history.get[0].url)
+          .toEqual(`${global.location.origin}${authConfig.csrfTokenApiPath}`);
+      });
   });
 });
 
@@ -274,7 +280,7 @@ describe('A GET request when the user is logged out', () => {
 
   it('redirects to login when no token exists and refreshing fails', () => {
     setJwtCookieTo(null);
-    return client.get('a/url').then(() => {
+    return client.get(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectLogin();
     });
@@ -282,7 +288,7 @@ describe('A GET request when the user is logged out', () => {
 
   it('redirects to login when an expired token exists and refreshing fails', () => {
     setJwtCookieTo(jwtTokens.expired.encoded);
-    return client.get('a/url').then(() => {
+    return client.get(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectLogin();
     });
