@@ -122,6 +122,15 @@ const expectNoCallToCsrfTokenFetch = () => {
   expect(csrfTokensManagerAxiosMock.history.get.length).toBe(0);
 };
 
+const expectRequestToHaveJwtAuth = (request) => {
+  expect(request.headers['USE-JWT-COOKIE']).toBe(true);
+  expect(request.withCredentials).toBe(true);
+};
+
+const expectRequestToHaveCsrfToken = (request) => {
+  expect(request.headers['X-CSRFToken']).toEqual(mockCsrfToken);
+};
+
 beforeEach(() => {
   mock.reset();
   accessTokenAxiosMock.reset();
@@ -153,6 +162,7 @@ describe('A GET request when the user is logged in ', () => {
     return client.get(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
+      expectRequestToHaveJwtAuth(mock.history.get[0]);
     });
   });
 
@@ -162,6 +172,7 @@ describe('A GET request when the user is logged in ', () => {
     return client.get(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
+      expectRequestToHaveJwtAuth(mock.history.get[0]);
     });
   });
 
@@ -170,23 +181,28 @@ describe('A GET request when the user is logged in ', () => {
     return client.get(mockApiEndpointPath).then(() => {
       expectNoCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
+      expectRequestToHaveJwtAuth(mock.history.get[0]);
     });
   });
 
   it('refreshes the token only once for multiple outgoing requests', () => {
     setJwtCookieTo(null);
     setJwtTokenRefreshResponseTo(200, jwtTokens.valid.encoded);
-    return Promise.all([client.get(mockApiEndpointPath), client.get(mockApiEndpointPath)])
-      .then(() => {
-        expectSingleCallToJwtTokenRefresh();
-        expectNoCallToCsrfTokenFetch();
-      });
+    return Promise.all([
+      client.get(mockApiEndpointPath),
+      client.get(mockApiEndpointPath),
+    ]).then(() => {
+      expectSingleCallToJwtTokenRefresh();
+      expectNoCallToCsrfTokenFetch();
+      expectRequestToHaveJwtAuth(mock.history.get[0]);
+      expectRequestToHaveJwtAuth(mock.history.get[1]);
+    });
   });
 
   it('throws an error and redirects if the refresh request succeeds but there is no new cookie delivered', () => {
     setJwtCookieTo(null);
     setJwtTokenRefreshResponseTo(200, null);
-    expect.assertions(4);
+    expect.hasAssertions();
     return client.get(mockApiEndpointPath).catch((error) => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
@@ -198,7 +214,7 @@ describe('A GET request when the user is logged in ', () => {
   it('throws an error and redirects if the refresh request succeeds but the cookie is malformed', () => {
     setJwtCookieTo(null);
     setJwtTokenRefreshResponseTo(200, 'a malformed jwt');
-    expect.assertions(4);
+    expect.hasAssertions();
     return client.get(mockApiEndpointPath).catch((error) => {
       // TODO: this error should be truer. Right now the token is not null.
       expectSingleCallToJwtTokenRefresh();
@@ -210,17 +226,19 @@ describe('A GET request when the user is logged in ', () => {
 
   it('logs info for 401 unauthorized api responses', () => {
     setJwtCookieTo(jwtTokens.valid.encoded);
-    expect.assertions(1);
+    expect.hasAssertions();
     return client.get('/401').catch(() => {
       expect(logInfo).toHaveBeenCalledWith('Unauthorized API response from /401');
+      expectRequestToHaveJwtAuth(mock.history.get[0]);
     });
   });
 
   it('logs info for 403 forbidden api responses', () => {
     setJwtCookieTo(jwtTokens.valid.encoded);
-    expect.assertions(1);
+    expect.hasAssertions();
     return client.get('/403').catch(() => {
       expect(logInfo).toHaveBeenCalledWith('Forbidden API response from /403');
+      expectRequestToHaveJwtAuth(mock.history.get[0]);
     });
   });
 });
@@ -234,7 +252,8 @@ describe('A POST request when the user is logged in ', () => {
   it('gets a csrf token and adds it to the request', () => {
     return client.post(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
-      expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+      expectRequestToHaveCsrfToken(mock.history.post[0]);
+      expectRequestToHaveJwtAuth(mock.history.post[0]);
     });
   });
 
@@ -244,8 +263,10 @@ describe('A POST request when the user is logged in ', () => {
       .then(() => {
         expectSingleCallToJwtTokenRefresh();
         expectSingleCallToCsrfTokenFetch();
-        expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
-        expect(mock.history.post[1].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+        expectRequestToHaveCsrfToken(mock.history.post[0]);
+        expectRequestToHaveJwtAuth(mock.history.post[0]);
+        expectRequestToHaveCsrfToken(mock.history.post[1]);
+        expectRequestToHaveJwtAuth(mock.history.post[1]);
       });
   });
 
@@ -256,8 +277,10 @@ describe('A POST request when the user is logged in ', () => {
     ]).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectSingleCallToCsrfTokenFetch();
-      expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
-      expect(mock.history.post[1].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+      expectRequestToHaveCsrfToken(mock.history.post[0]);
+      expectRequestToHaveJwtAuth(mock.history.post[0]);
+      expectRequestToHaveCsrfToken(mock.history.post[1]);
+      expectRequestToHaveJwtAuth(mock.history.post[1]);
     });
   });
 
@@ -266,7 +289,8 @@ describe('A POST request when the user is logged in ', () => {
       .then(() => {
         expectSingleCallToJwtTokenRefresh();
         expectSingleCallToCsrfTokenFetch();
-        expect(mock.history.post[0].headers['X-CSRFToken']).toEqual(mockCsrfToken);
+        expectRequestToHaveCsrfToken(mock.history.post[0]);
+        expectRequestToHaveJwtAuth(mock.history.post[0]);
         expect(csrfTokensManagerAxiosMock.history.get[0].url)
           .toEqual(`${global.location.origin}${authConfig.csrfTokenApiPath}`);
       });
@@ -332,7 +356,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
     it('throws and error and redirects to logout if there was a problem getting the jwt cookie', () => {
       setJwtCookieTo(null);
       setJwtTokenRefreshResponseTo(200, null);
-      expect.assertions(3);
+      expect.hasAssertions();
       return client.ensureAuthenticatedUser().catch((error) => {
         expectSingleCallToJwtTokenRefresh();
         expectLogout();
@@ -357,7 +381,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
 
     it('throws an error and does not redirect if the referrer is login user is logged out', () => {
       jest.spyOn(global.document, 'referrer', 'get').mockReturnValue(process.env.LOGIN_URL);
-      expect.assertions(3);
+      expect.hasAssertions();
       setJwtCookieTo(null);
       return client.ensureAuthenticatedUser().catch((error) => {
         expectSingleCallToJwtTokenRefresh();
