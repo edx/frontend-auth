@@ -1,6 +1,6 @@
 import { logError } from '@edx/frontend-logging';
 import AccessToken from './AccessToken';
-import CsrfTokensManager from './CsrfTokensManager';
+import CsrfTokens from './CsrfTokens';
 
 // Apply the auth-related properties and functions to the Axios API client.
 export default function applyAuthInterface(httpClient, authConfig) {
@@ -20,7 +20,7 @@ export default function applyAuthInterface(httpClient, authConfig) {
     cookieName: authConfig.accessTokenCookieName,
     refreshEndpoint: authConfig.refreshAccessTokenEndpoint,
   });
-  httpClient.csrfTokens = new CsrfTokensManager({
+  httpClient.csrfTokens = new CsrfTokens({
     csrfTokenApiPath: authConfig.csrfTokenApiPath,
   });
 

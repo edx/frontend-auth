@@ -16,7 +16,7 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
   /**
    * Ensure we have a CSRF token header when making POST, PUT, and DELETE requests.
    */
-  function ensureCsrfToken(axiosRequestConfig) {
+  function ensureCsrfTokenInterceptor(axiosRequestConfig) {
     const { url, method } = axiosRequestConfig;
     const isCsrfTokenRequired = CSRF_PROTECTED_METHODS.includes(method.toUpperCase());
 
@@ -32,7 +32,7 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
     return Promise.resolve(axiosRequestConfig);
   }
 
-  function ensureValidJWTCookie(axiosRequestConfig) {
+  function ensureValidJWTCookieInterceptor(axiosRequestConfig) {
     return authenticatedAPIClient.accessToken.get()
       .then((authenticatedUserAccessToken) => {
         if (authenticatedUserAccessToken === null) {
@@ -71,8 +71,8 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
   // Axios runs the interceptors in reverse order from how they are listed.
   // ensureValidJWTCookie needs to run first to ensure the user is authenticated
   // before making the CSRF token request.
-  authenticatedAPIClient.interceptors.request.use(ensureCsrfToken);
-  authenticatedAPIClient.interceptors.request.use(ensureValidJWTCookie);
+  authenticatedAPIClient.interceptors.request.use(ensureCsrfTokenInterceptor);
+  authenticatedAPIClient.interceptors.request.use(ensureValidJWTCookieInterceptor);
   authenticatedAPIClient.interceptors.response.use(
     response => response,
     handleUnauthorizedAPIResponse,

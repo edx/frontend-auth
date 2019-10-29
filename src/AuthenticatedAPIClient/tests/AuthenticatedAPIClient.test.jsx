@@ -4,7 +4,7 @@ import Cookies from 'universal-cookie';
 import MockAdapter from 'axios-mock-adapter';
 import { NewRelicLoggingService, logInfo, logError } from '@edx/frontend-logging';
 import AccessToken from '../AccessToken';
-import CsrfTokensManager from '../CsrfTokensManager';
+import CsrfTokens from '../CsrfTokens';
 import getAuthenticatedAPIClient from '../index';
 
 const authConfig = {
@@ -69,10 +69,9 @@ const axiosMock = new MockAdapter(axios);
 const accessTokenAxios = axios.create();
 const accessTokenAxiosMock = new MockAdapter(accessTokenAxios);
 AccessToken.__Rewire__('httpClient', accessTokenAxios); // eslint-disable-line no-underscore-dangle
-
-const csrfTokensManagerAxios = axios.create();
-const csrfTokensManagerAxiosMock = new MockAdapter(csrfTokensManagerAxios);
-CsrfTokensManager.__Rewire__('httpClient', csrfTokensManagerAxios); // eslint-disable-line no-underscore-dangle
+const csrfTokensAxios = axios.create();
+const csrfTokensAxiosMock = new MockAdapter(csrfTokensAxios);
+CsrfTokens.__Rewire__('httpClient', csrfTokensAxios); // eslint-disable-line no-underscore-dangle
 
 
 const client = getAuthenticatedAPIClient(authConfig);
@@ -110,11 +109,11 @@ const expectNoCallToJwtTokenRefresh = () => {
 };
 
 const expectSingleCallToCsrfTokenFetch = () => {
-  expect(csrfTokensManagerAxiosMock.history.get.length).toBe(1);
+  expect(csrfTokensAxiosMock.history.get.length).toBe(1);
 };
 
 const expectNoCallToCsrfTokenFetch = () => {
-  expect(csrfTokensManagerAxiosMock.history.get.length).toBe(0);
+  expect(csrfTokensAxiosMock.history.get.length).toBe(0);
 };
 
 const expectRequestToHaveJwtAuth = (request) => {
@@ -129,16 +128,16 @@ const expectRequestToHaveCsrfToken = (request) => {
 beforeEach(() => {
   axiosMock.reset();
   accessTokenAxiosMock.reset();
-  csrfTokensManagerAxiosMock.reset();
+  csrfTokensAxiosMock.reset();
   mockCookies.get.mockReset();
   window.location.assign.mockReset();
   logInfo.mockReset();
   logError.mockReset();
-  CsrfTokensManager.__Rewire__('csrfTokens', {}); // eslint-disable-line no-underscore-dangle
+  CsrfTokens.__Rewire__('csrfTokenCache', {}); // eslint-disable-line no-underscore-dangle
   axiosMock.onGet('/401').reply(401);
   axiosMock.onGet('/403').reply(403);
   axiosMock.onAny().reply(200);
-  csrfTokensManagerAxiosMock
+  csrfTokensAxiosMock
     .onGet(process.env.CSRF_TOKEN_REFRESH)
     .reply(200, { csrfToken: mockCsrfToken });
 });
@@ -312,7 +311,7 @@ describe('A POST request when the user is logged in ', () => {
         expectSingleCallToCsrfTokenFetch();
         expectRequestToHaveCsrfToken(axiosMock.history.post[0]);
         expectRequestToHaveJwtAuth(axiosMock.history.post[0]);
-        expect(csrfTokensManagerAxiosMock.history.get[0].url)
+        expect(csrfTokensAxiosMock.history.get[0].url)
           .toEqual(`${global.location.origin}${authConfig.csrfTokenApiPath}`);
       });
   });
@@ -341,14 +340,14 @@ describe('A GET request when the user is logged out', () => {
 });
 
 describe('AuthenticatedAPIClient auth interface', () => {
-  it('can redirect to login', () => {
+  it('can go to login with different redirect url parameters', () => {
     client.login('http://edx.org/dashboard');
     expectLogin('http://edx.org/dashboard');
     client.login();
     expectLogin(process.env.BASE_URL);
   });
 
-  it('can redirect to logout', () => {
+  it('can go to logout with different redirect url parameters', () => {
     client.logout('http://edx.org/');
     expectLogout('http://edx.org/');
     client.logout();
@@ -377,7 +376,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
     // This test case is unexpected, but occurring in production. See ARCH-948 for
     // more information on a similar situation that was happening prior to this
     // refactor in Oct 2019.
-    it('throws and error and redirects to logout if there was a problem getting the jwt cookie', () => {
+    it('throws an error and redirects to logout if there was a problem getting the jwt cookie', () => {
       setJwtCookieTo(null);
       // The JWT cookie is null despite a 200 response.
       setJwtTokenRefreshResponseTo(200, null);
@@ -398,7 +397,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
       setJwtTokenRefreshResponseTo(401, null);
     });
 
-    it('attempts to refresh a missing jwt token and returns null if the user is logged out', () => {
+    it('attempts to refresh a missing jwt token and redirects user to login', () => {
       setJwtCookieTo(null);
       return client.ensureAuthenticatedUser('/route').then((authenticatedUserAccessToken) => {
         expect(authenticatedUserAccessToken).toBeNull();
@@ -407,7 +406,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
       });
     });
 
-    it('throws an error and does not redirect if the referrer is login user is logged out', () => {
+    it('throws an error and does not redirect if the referrer is the login page', () => {
       jest.spyOn(global.document, 'referrer', 'get').mockReturnValue(process.env.LOGIN_URL);
       setJwtCookieTo(null);
       expect.hasAssertions();
