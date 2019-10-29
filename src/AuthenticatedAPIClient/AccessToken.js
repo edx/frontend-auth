@@ -80,7 +80,12 @@ export default class AccessToken {
   }
 
   async get() {
-    let decodedAccessToken = decodeJwtCookie(this.cookieName);
+    let decodedAccessToken;
+    try {
+      decodedAccessToken = decodeJwtCookie(this.cookieName);
+    } catch (e) {
+      decodedAccessToken = null;
+    }
 
     if (isTokenExpired(decodedAccessToken)) {
       decodedAccessToken = await this.refresh();
