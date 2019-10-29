@@ -150,6 +150,33 @@ describe('getAuthenticatedAPIClient', () => {
   });
 });
 
+describe('Happy path requests of each method type when the user is logged in ', () => {
+  beforeEach(() => {
+    setJwtCookieTo(null);
+    setJwtTokenRefreshResponseTo(200, jwtTokens.valid.encoded);
+  });
+  ['get', 'options'].forEach((method) => {
+    it(`refreshes the jwt token for ${method.toUpperCase()} requests`, () => {
+      return client[method](mockApiEndpointPath).then(() => {
+        expectSingleCallToJwtTokenRefresh();
+        expectNoCallToCsrfTokenFetch();
+        expectRequestToHaveJwtAuth(axiosMock.history[method][0]);
+      });
+    });
+  });
+
+  ['post', 'put', 'patch', 'delete'].forEach((method) => {
+    it(`refreshes the csrf and jwt tokens for ${method.toUpperCase()} requests`, () => {
+      return client[method](mockApiEndpointPath).then(() => {
+        expectSingleCallToJwtTokenRefresh();
+        expectSingleCallToCsrfTokenFetch();
+        expectRequestToHaveJwtAuth(axiosMock.history[method][0]);
+        expectRequestToHaveCsrfToken(axiosMock.history[method][0]);
+      });
+    });
+  });
+});
+
 describe('A GET request when the user is logged in ', () => {
   it('refreshes the token when none is found', () => {
     setJwtCookieTo(null);
@@ -263,6 +290,28 @@ describe('A GET request when the user is logged in ', () => {
   });
 });
 
+describe('A GET request when the user is logged out', () => {
+  beforeEach(() => {
+    setJwtTokenRefreshResponseTo(401, null);
+  });
+
+  it('redirects to login when no token exists and refreshing fails', () => {
+    setJwtCookieTo(null);
+    return client.get(mockApiEndpointPath).then(() => {
+      expectSingleCallToJwtTokenRefresh();
+      expectLogin();
+    });
+  });
+
+  it('redirects to login when an expired token exists and refreshing fails', () => {
+    setJwtCookieTo(jwtTokens.expired.encoded);
+    return client.get(mockApiEndpointPath).then(() => {
+      expectSingleCallToJwtTokenRefresh();
+      expectLogin();
+    });
+  });
+});
+
 describe('A POST request when the user is logged in ', () => {
   beforeEach(() => {
     setJwtCookieTo(null);
@@ -314,28 +363,6 @@ describe('A POST request when the user is logged in ', () => {
         expect(csrfTokensAxiosMock.history.get[0].url)
           .toEqual(`${global.location.origin}${authConfig.csrfTokenApiPath}`);
       });
-  });
-});
-
-describe('A GET request when the user is logged out', () => {
-  beforeEach(() => {
-    setJwtTokenRefreshResponseTo(401, null);
-  });
-
-  it('redirects to login when no token exists and refreshing fails', () => {
-    setJwtCookieTo(null);
-    return client.get(mockApiEndpointPath).then(() => {
-      expectSingleCallToJwtTokenRefresh();
-      expectLogin();
-    });
-  });
-
-  it('redirects to login when an expired token exists and refreshing fails', () => {
-    setJwtCookieTo(jwtTokens.expired.encoded);
-    return client.get(mockApiEndpointPath).then(() => {
-      expectSingleCallToJwtTokenRefresh();
-      expectLogin();
-    });
   });
 });
 
