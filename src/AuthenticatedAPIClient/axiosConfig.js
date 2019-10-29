@@ -1,4 +1,4 @@
-import { logInfo } from '@edx/frontend-logging';
+import { logInfo, logError } from '@edx/frontend-logging';
 
 const CSRF_HEADER_NAME = 'X-CSRFToken';
 const CSRF_PROTECTED_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
@@ -42,6 +42,7 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
         return axiosRequestConfig;
       })
       .catch((error) => {
+        logError(`frontend-auth: ${error.message}`, error.customAttributes);
         // There were unexpected errors getting the access token.
         authenticatedAPIClient.logout();
         throw error;

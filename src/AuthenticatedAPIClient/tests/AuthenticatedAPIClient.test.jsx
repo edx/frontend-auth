@@ -2,7 +2,7 @@
 import axios from 'axios';
 import Cookies from 'universal-cookie';
 import MockAdapter from 'axios-mock-adapter';
-import { NewRelicLoggingService, logInfo } from '@edx/frontend-logging';
+import { NewRelicLoggingService, logInfo, logError } from '@edx/frontend-logging';
 import AccessToken from '../AccessToken';
 import CsrfTokensManager from '../CsrfTokensManager';
 import getAuthenticatedAPIClient from '../index';
@@ -65,12 +65,7 @@ window.location.assign = jest.fn();
 const mockCookies = new Cookies();
 
 // This sets the mock adapter on the default instance
-const mock = new MockAdapter(axios);
-mock.onGet('/401').reply(401);
-mock.onGet('/403').reply(403);
-mock.onGet(process.env.CSRF_TOKEN_REFRESH).reply(200, { csrfToken: mockCsrfToken });
-mock.onAny().reply(200);
-
+const axiosMock = new MockAdapter(axios);
 const accessTokenAxios = axios.create();
 const accessTokenAxiosMock = new MockAdapter(accessTokenAxios);
 AccessToken.__Rewire__('httpClient', accessTokenAxios); // eslint-disable-line no-underscore-dangle
@@ -132,16 +127,17 @@ const expectRequestToHaveCsrfToken = (request) => {
 };
 
 beforeEach(() => {
-  mock.reset();
+  axiosMock.reset();
   accessTokenAxiosMock.reset();
   csrfTokensManagerAxiosMock.reset();
   mockCookies.get.mockReset();
   window.location.assign.mockReset();
   logInfo.mockReset();
+  logError.mockReset();
   CsrfTokensManager.__Rewire__('csrfTokens', {}); // eslint-disable-line no-underscore-dangle
-  mock.onGet('/401').reply(401);
-  mock.onGet('/403').reply(403);
-  mock.onAny().reply(200);
+  axiosMock.onGet('/401').reply(401);
+  axiosMock.onGet('/403').reply(403);
+  axiosMock.onAny().reply(200);
   csrfTokensManagerAxiosMock
     .onGet(process.env.CSRF_TOKEN_REFRESH)
     .reply(200, { csrfToken: mockCsrfToken });
@@ -162,7 +158,7 @@ describe('A GET request when the user is logged in ', () => {
     return client.get(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
-      expectRequestToHaveJwtAuth(mock.history.get[0]);
+      expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
     });
   });
 
@@ -172,7 +168,7 @@ describe('A GET request when the user is logged in ', () => {
     return client.get(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
-      expectRequestToHaveJwtAuth(mock.history.get[0]);
+      expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
     });
   });
 
@@ -181,7 +177,7 @@ describe('A GET request when the user is logged in ', () => {
     return client.get(mockApiEndpointPath).then(() => {
       expectNoCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
-      expectRequestToHaveJwtAuth(mock.history.get[0]);
+      expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
     });
   });
 
@@ -194,19 +190,26 @@ describe('A GET request when the user is logged in ', () => {
     ]).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
-      expectRequestToHaveJwtAuth(mock.history.get[0]);
-      expectRequestToHaveJwtAuth(mock.history.get[1]);
+      expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
+      expectRequestToHaveJwtAuth(axiosMock.history.get[1]);
     });
   });
 
+  // This test case is unexpected, but occurring in production. See ARCH-948 for
+  // more information on a similar situation that was happening prior to this
+  // refactor in Oct 2019.
   it('throws an error and redirects if the refresh request succeeds but there is no new cookie delivered', () => {
     setJwtCookieTo(null);
+    // The JWT cookie is null despite a 200 response.
     setJwtTokenRefreshResponseTo(200, null);
     expect.hasAssertions();
-    return client.get(mockApiEndpointPath).catch((error) => {
+    return client.get(mockApiEndpointPath).catch(() => {
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
-      expect(error.message).toEqual('Access token is still null after successful refresh.');
+      expect(logError).toHaveBeenCalledWith(
+        'frontend-auth: Access token is still null after successful refresh.',
+        expect.any(Object),
+      );
       expectLogout();
     });
   });
@@ -215,11 +218,29 @@ describe('A GET request when the user is logged in ', () => {
     setJwtCookieTo(null);
     setJwtTokenRefreshResponseTo(200, 'a malformed jwt');
     expect.hasAssertions();
-    return client.get(mockApiEndpointPath).catch((error) => {
+    return client.get(mockApiEndpointPath).catch(() => {
       // TODO: this error should be truer. Right now the token is not null.
       expectSingleCallToJwtTokenRefresh();
       expectNoCallToCsrfTokenFetch();
-      expect(error.message).toEqual('Access token is still null after successful refresh.');
+      expect(logError).toHaveBeenCalledWith(
+        'frontend-auth: Error decoding JWT token.',
+        expect.any(Object),
+      );
+      expectLogout();
+    });
+  });
+
+  it('throws an error and redirects if the refresh request fails for an unknown reason', () => {
+    setJwtCookieTo(null);
+    setJwtTokenRefreshResponseTo(403, null);
+    expect.hasAssertions();
+    return client.get(mockApiEndpointPath).catch(() => {
+      expectSingleCallToJwtTokenRefresh();
+      expectNoCallToCsrfTokenFetch();
+      expect(logError).toHaveBeenCalledWith(
+        'frontend-auth: Request failed with status code 403',
+        expect.any(Object),
+      );
       expectLogout();
     });
   });
@@ -229,7 +250,7 @@ describe('A GET request when the user is logged in ', () => {
     expect.hasAssertions();
     return client.get('/401').catch(() => {
       expect(logInfo).toHaveBeenCalledWith('Unauthorized API response from /401');
-      expectRequestToHaveJwtAuth(mock.history.get[0]);
+      expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
     });
   });
 
@@ -238,7 +259,7 @@ describe('A GET request when the user is logged in ', () => {
     expect.hasAssertions();
     return client.get('/403').catch(() => {
       expect(logInfo).toHaveBeenCalledWith('Forbidden API response from /403');
-      expectRequestToHaveJwtAuth(mock.history.get[0]);
+      expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
     });
   });
 });
@@ -252,8 +273,8 @@ describe('A POST request when the user is logged in ', () => {
   it('gets a csrf token and adds it to the request', () => {
     return client.post(mockApiEndpointPath).then(() => {
       expectSingleCallToJwtTokenRefresh();
-      expectRequestToHaveCsrfToken(mock.history.post[0]);
-      expectRequestToHaveJwtAuth(mock.history.post[0]);
+      expectRequestToHaveCsrfToken(axiosMock.history.post[0]);
+      expectRequestToHaveJwtAuth(axiosMock.history.post[0]);
     });
   });
 
@@ -263,10 +284,10 @@ describe('A POST request when the user is logged in ', () => {
       .then(() => {
         expectSingleCallToJwtTokenRefresh();
         expectSingleCallToCsrfTokenFetch();
-        expectRequestToHaveCsrfToken(mock.history.post[0]);
-        expectRequestToHaveJwtAuth(mock.history.post[0]);
-        expectRequestToHaveCsrfToken(mock.history.post[1]);
-        expectRequestToHaveJwtAuth(mock.history.post[1]);
+        expectRequestToHaveCsrfToken(axiosMock.history.post[0]);
+        expectRequestToHaveJwtAuth(axiosMock.history.post[0]);
+        expectRequestToHaveCsrfToken(axiosMock.history.post[1]);
+        expectRequestToHaveJwtAuth(axiosMock.history.post[1]);
       });
   });
 
@@ -277,10 +298,10 @@ describe('A POST request when the user is logged in ', () => {
     ]).then(() => {
       expectSingleCallToJwtTokenRefresh();
       expectSingleCallToCsrfTokenFetch();
-      expectRequestToHaveCsrfToken(mock.history.post[0]);
-      expectRequestToHaveJwtAuth(mock.history.post[0]);
-      expectRequestToHaveCsrfToken(mock.history.post[1]);
-      expectRequestToHaveJwtAuth(mock.history.post[1]);
+      expectRequestToHaveCsrfToken(axiosMock.history.post[0]);
+      expectRequestToHaveJwtAuth(axiosMock.history.post[0]);
+      expectRequestToHaveCsrfToken(axiosMock.history.post[1]);
+      expectRequestToHaveJwtAuth(axiosMock.history.post[1]);
     });
   });
 
@@ -289,8 +310,8 @@ describe('A POST request when the user is logged in ', () => {
       .then(() => {
         expectSingleCallToJwtTokenRefresh();
         expectSingleCallToCsrfTokenFetch();
-        expectRequestToHaveCsrfToken(mock.history.post[0]);
-        expectRequestToHaveJwtAuth(mock.history.post[0]);
+        expectRequestToHaveCsrfToken(axiosMock.history.post[0]);
+        expectRequestToHaveJwtAuth(axiosMock.history.post[0]);
         expect(csrfTokensManagerAxiosMock.history.get[0].url)
           .toEqual(`${global.location.origin}${authConfig.csrfTokenApiPath}`);
       });
@@ -353,14 +374,21 @@ describe('AuthenticatedAPIClient auth interface', () => {
       });
     });
 
+    // This test case is unexpected, but occurring in production. See ARCH-948 for
+    // more information on a similar situation that was happening prior to this
+    // refactor in Oct 2019.
     it('throws and error and redirects to logout if there was a problem getting the jwt cookie', () => {
       setJwtCookieTo(null);
+      // The JWT cookie is null despite a 200 response.
       setJwtTokenRefreshResponseTo(200, null);
       expect.hasAssertions();
-      return client.ensureAuthenticatedUser().catch((error) => {
+      return client.ensureAuthenticatedUser().catch(() => {
         expectSingleCallToJwtTokenRefresh();
         expectLogout();
-        expect(error.message).toEqual('Access token is still null after successful refresh.');
+        expect(logError).toHaveBeenCalledWith(
+          'frontend-auth: Access token is still null after successful refresh.',
+          expect.any(Object),
+        );
       });
     });
   });
@@ -381,12 +409,12 @@ describe('AuthenticatedAPIClient auth interface', () => {
 
     it('throws an error and does not redirect if the referrer is login user is logged out', () => {
       jest.spyOn(global.document, 'referrer', 'get').mockReturnValue(process.env.LOGIN_URL);
-      expect.hasAssertions();
       setJwtCookieTo(null);
-      return client.ensureAuthenticatedUser().catch((error) => {
+      expect.hasAssertions();
+      return client.ensureAuthenticatedUser().catch(() => {
         expectSingleCallToJwtTokenRefresh();
         expect(window.location.assign).not.toHaveBeenCalled();
-        expect(error.message).toEqual('Redirect from login page. Rejecting to avoid infinite redirect loop.');
+        expect(logError).toHaveBeenCalledWith('frontend-auth: Redirect from login page. Rejecting to avoid infinite redirect loop.');
       });
     });
   });

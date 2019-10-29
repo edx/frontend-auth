@@ -1,7 +1,6 @@
 import Cookies from 'universal-cookie';
 import jwtDecode from 'jwt-decode';
 import axios from 'axios';
-import { logInfo, logError } from '@edx/frontend-logging';
 
 const httpClient = axios.create();
 const cookies = new Cookies();
@@ -12,8 +11,10 @@ const decodeJwtCookie = (cookieName) => {
   if (cookieValue) {
     try {
       return jwtDecode(cookieValue);
-    } catch (error) {
-      logInfo('Error decoding JWT token.', { error, cookieValue });
+    } catch (e) {
+      const error = new Error('Error decoding JWT token.');
+      error.customAttributes = { error: e, cookieValue };
+      throw error;
     }
   }
 
@@ -36,30 +37,38 @@ export default class AccessToken {
             const decodedAccessToken = decodeJwtCookie(this.cookieName);
 
             if (!decodedAccessToken) {
-              const error = new Error('Access token is still null after successful refresh.');
-              error.isIrrecoverable = true;
               // This is an unexpected case. The refresh endpoint should
               // set the cookie that is needed. See ARCH-948 for more
               // information on a similar situation that was happening
               // prior to this refactor in Oct 2019.
-              logError(`frontend-auth: ${error.message}`, { axiosResponse });
+              const error = new Error('Access token is still null after successful refresh.');
+              error.customAttributes = { axiosResponse };
               reject(error);
             }
 
             resolve(decodedAccessToken);
           })
-          .catch(() => {
-            // In this case, we learn that the user is not authenticated.
-            // TODO: Network timeouts and other problems will end up in
-            // this block of code. We could add logic for retrying token
-            // refreshes if we wanted to.
+          .catch((error) => {
+            const userIsUnauthenticated = error.response && error.response.status === 401;
 
-            // Clean up the cookie if it exists to eliminate any situation
-            // where the cookie is not expired but the jwt is expired.
-            cookies.remove(this.cookieName);
-
-            const decodedAccessToken = null;
-            resolve(decodedAccessToken);
+            if (userIsUnauthenticated) {
+              // Clean up the cookie if it exists to eliminate any situation
+              // where the cookie is not expired but the jwt is expired.
+              cookies.remove(this.cookieName);
+              const decodedAccessToken = null;
+              resolve(decodedAccessToken);
+            } else {
+              // TODO: Network timeouts and other problems will end up in
+              // this block of code. We could add logic for retrying token
+              // refreshes if we wanted to.
+              error.customAttributes = { // eslint-disable-line no-param-reassign
+                response: error.response,
+                request: error.request,
+                config: error.config,
+                ...error.customAttributes,
+              };
+              reject(error);
+            }
           })
           .finally(() => {
             delete this.refreshRequestPromise;

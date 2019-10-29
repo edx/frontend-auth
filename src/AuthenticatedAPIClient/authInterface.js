@@ -1,3 +1,4 @@
+import { logError } from '@edx/frontend-logging';
 import AccessToken from './AccessToken';
 import CsrfTokensManager from './CsrfTokensManager';
 
@@ -37,16 +38,20 @@ export default function applyAuthInterface(httpClient, authConfig) {
           global.document.referrer.startsWith(httpClient.loginUrl);
 
           if (isRedirectFromLoginPage) {
-            reject(new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.'));
-          } else {
-            // The user is not authenticated, send them to the login page.
-            httpClient.login(httpClient.appBaseUrl + route);
+            const redirectLoopError = new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.');
+            logError(`frontend-auth: ${redirectLoopError.message}`);
+            reject(redirectLoopError);
+            return;
           }
+
+          // The user is not authenticated, send them to the login page.
+          httpClient.login(httpClient.appBaseUrl + route);
         }
 
         resolve(authenticatedUserAccessToken);
       })
       .catch((error) => {
+        logError(`frontend-auth: ${error.message}`, error.customAttributes);
         // There were unexpected errors getting the access token.
         httpClient.logout();
         reject(error);
