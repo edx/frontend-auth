@@ -31,49 +31,52 @@ export default class AccessToken {
 
   refresh() {
     if (this.refreshRequestPromise === undefined) {
-      this.refreshRequestPromise = new Promise((resolve, reject) => {
-        httpClient.post(this.refreshEndpoint)
-          .then((axiosResponse) => {
-            const decodedAccessToken = decodeJwtCookie(this.cookieName);
+      const makeRefreshRequest = async () => {
+        let axiosResponse;
+        try {
+          axiosResponse = await httpClient.post(this.refreshEndpoint);
+        } catch (error) {
+          const userIsUnauthenticated = error.response && error.response.status === 401;
 
-            if (!decodedAccessToken) {
-              // This is an unexpected case. The refresh endpoint should
-              // set the cookie that is needed. See ARCH-948 for more
-              // information on a similar situation that was happening
-              // prior to this refactor in Oct 2019.
-              const error = new Error('Access token is still null after successful refresh.');
-              error.customAttributes = { axiosResponse };
-              reject(error);
-            }
+          if (userIsUnauthenticated) {
+            // Clean up the cookie if it exists to eliminate any situation
+            // where the cookie is not expired but the jwt is expired.
+            cookies.remove(this.cookieName);
+            const decodedAccessToken = null;
+            return decodedAccessToken;
+          }
 
-            resolve(decodedAccessToken);
-          })
-          .catch((error) => {
-            const userIsUnauthenticated = error.response && error.response.status === 401;
+          // TODO: Network timeouts and other problems will end up in
+          // this block of code. We could add logic for retrying token
+          // refreshes if we wanted to.
+          error.customAttributes = { // eslint-disable-line no-param-reassign
+            response: error.response,
+            request: error.request,
+            config: error.config,
+            ...error.customAttributes,
+          };
+          throw error;
+        }
 
-            if (userIsUnauthenticated) {
-              // Clean up the cookie if it exists to eliminate any situation
-              // where the cookie is not expired but the jwt is expired.
-              cookies.remove(this.cookieName);
-              const decodedAccessToken = null;
-              resolve(decodedAccessToken);
-            } else {
-              // TODO: Network timeouts and other problems will end up in
-              // this block of code. We could add logic for retrying token
-              // refreshes if we wanted to.
-              error.customAttributes = { // eslint-disable-line no-param-reassign
-                response: error.response,
-                request: error.request,
-                config: error.config,
-                ...error.customAttributes,
-              };
-              reject(error);
-            }
-          })
-          .finally(() => {
-            delete this.refreshRequestPromise;
-          });
-      });
+        const decodedAccessToken = decodeJwtCookie(this.cookieName);
+
+        if (!decodedAccessToken) {
+          // This is an unexpected case. The refresh endpoint should
+          // set the cookie that is needed. See ARCH-948 for more
+          // information on a similar situation that was happening
+          // prior to this refactor in Oct 2019.
+          const error = new Error('Access token is still null after successful refresh.');
+          error.customAttributes = { axiosResponse };
+          throw error;
+        }
+
+        return decodedAccessToken;
+      };
+
+      this.refreshRequestPromise = makeRefreshRequest()
+        .finally(() => {
+          delete this.refreshRequestPromise;
+        });
     }
 
     return this.refreshRequestPromise;
