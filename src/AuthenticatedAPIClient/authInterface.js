@@ -30,33 +30,34 @@ export default function applyAuthInterface(httpClient, authConfig) {
    * @param route: used to return user after login when not authenticated.
    * @returns Promise that resolves to { authenticatedUser: {...}, decodedAccessToken: {...}}
    */
-  httpClient.ensureAuthenticatedUser = route => new Promise((resolve, reject) => {
-    httpClient.accessToken.get()
-      .then((authenticatedUserAccessToken) => {
-        if (authenticatedUserAccessToken === null) {
-          const isRedirectFromLoginPage = global.document.referrer &&
-          global.document.referrer.startsWith(httpClient.loginUrl);
+  httpClient.ensureAuthenticatedUser = async (route) => {
+    let authenticatedUserAccessToken = null;
 
-          if (isRedirectFromLoginPage) {
-            const redirectLoopError = new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.');
-            logError(`frontend-auth: ${redirectLoopError.message}`);
-            reject(redirectLoopError);
-            return;
-          }
+    try {
+      authenticatedUserAccessToken = await httpClient.accessToken.get();
+    } catch (error) {
+      // There were unexpected errors getting the access token.
+      logError(`frontend-auth: ${error.message}`, error.customAttributes);
+      httpClient.logout();
+      throw error;
+    }
 
-          // The user is not authenticated, send them to the login page.
-          httpClient.login(httpClient.appBaseUrl + route);
-        }
+    if (authenticatedUserAccessToken === null) {
+      const isRedirectFromLoginPage = global.document.referrer &&
+        global.document.referrer.startsWith(httpClient.loginUrl);
 
-        resolve(authenticatedUserAccessToken);
-      })
-      .catch((error) => {
-        logError(`frontend-auth: ${error.message}`, error.customAttributes);
-        // There were unexpected errors getting the access token.
-        httpClient.logout();
-        reject(error);
-      });
-  });
+      if (isRedirectFromLoginPage) {
+        const redirectLoopError = new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.');
+        logError(`frontend-auth: ${redirectLoopError.message}`);
+        throw redirectLoopError;
+      }
+
+      // The user is not authenticated, send them to the login page.
+      httpClient.login(httpClient.appBaseUrl + route);
+    }
+
+    return authenticatedUserAccessToken;
+  };
 
   httpClient.login = (redirectUrl = authConfig.appBaseUrl) => {
     global.location.assign(`${httpClient.loginUrl}?next=${encodeURIComponent(redirectUrl)}`);
