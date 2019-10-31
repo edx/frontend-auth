@@ -61,7 +61,7 @@ const processAxiosError = (axiosErrorObject) => {
   } else if (request) {
     error.customAttributes = {
       ...error.customAttributes,
-      errorType: 'api-request-error',
+      type: 'api-request-error',
       errorData: error.message,
       url,
       method,
@@ -70,7 +70,7 @@ const processAxiosError = (axiosErrorObject) => {
   } else {
     error.customAttributes = {
       ...error.customAttributes,
-      errorType: 'api-request-config-error',
+      type: 'api-request-config-error',
       errorData: error.message,
       url,
       method,
@@ -81,4 +81,13 @@ const processAxiosError = (axiosErrorObject) => {
   return error;
 };
 
-export { getUrlParts, logFrontendAuthError, processAxiosError };
+const processAxiosErrorAndThrow = (axiosErrorObject) => {
+  throw processAxiosError(axiosErrorObject);
+};
+
+export {
+  getUrlParts,
+  logFrontendAuthError,
+  processAxiosError,
+  processAxiosErrorAndThrow,
+};

@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getUrlParts } from './utils';
+import { getUrlParts, processAxiosErrorAndThrow } from './utils';
 
 const httpClient = axios.create();
 const csrfTokenCache = {};
@@ -35,6 +35,7 @@ export default class CsrfTokens {
           csrfTokenCache[domain] = response.data.csrfToken;
           return csrfTokenCache[domain];
         })
+        .catch(processAxiosErrorAndThrow)
         .finally(() => {
           delete csrfTokenRequestPromises[domain];
         });

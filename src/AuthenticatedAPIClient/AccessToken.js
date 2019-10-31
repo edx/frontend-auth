@@ -1,7 +1,7 @@
 import Cookies from 'universal-cookie';
 import jwtDecode from 'jwt-decode';
 import axios from 'axios';
-import { logFrontendAuthError, processAxiosError } from './utils';
+import { logFrontendAuthError, processAxiosErrorAndThrow } from './utils';
 
 const httpClient = axios.create();
 const cookies = new Cookies();
@@ -36,10 +36,11 @@ export default class AccessToken {
       const makeRefreshRequest = async () => {
         let axiosResponse;
         try {
-          axiosResponse = await httpClient.post(this.refreshEndpoint);
+          axiosResponse = await httpClient
+            .post(this.refreshEndpoint)
+            .catch(processAxiosErrorAndThrow);
         } catch (error) {
           const userIsUnauthenticated = error.response && error.response.status === 401;
-
           if (userIsUnauthenticated) {
             // Clean up the cookie if it exists to eliminate any situation
             // where the cookie is not expired but the jwt is expired.
@@ -51,8 +52,7 @@ export default class AccessToken {
           // TODO: Network timeouts and other problems will end up in
           // this block of code. We could add logic for retrying token
           // refreshes if we wanted to.
-          const processedError = processAxiosError(error);
-          throw processedError;
+          throw error;
         }
 
         const decodedAccessToken = decodeJwtCookie(this.cookieName);
@@ -84,8 +84,7 @@ export default class AccessToken {
     try {
       decodedAccessToken = decodeJwtCookie(this.cookieName);
     } catch (e) {
-      // Swallow this error and continue because we
-      // are about to attempt to refresh it.
+      // Log unexpected error and continue with attempt to refresh it.
       logFrontendAuthError(e);
       decodedAccessToken = null;
     }

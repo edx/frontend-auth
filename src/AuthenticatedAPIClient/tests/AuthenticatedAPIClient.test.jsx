@@ -105,9 +105,12 @@ function expectLogin(redirectUrl = process.env.BASE_URL) {
     .toHaveBeenCalledWith(`${process.env.LOGIN_URL}?next=${encodedRedirectUrl}`);
 }
 
-const expectLogErrorToHaveBeenCalledWithMessage = (message) => {
-  const loggedError = mockLoggingService.logError.mock.calls[0][0];
-  expect(loggedError.message).toEqual(message);
+const expectLogErrorToHaveBeenCalledWithMessage = (callParams, errorMessage, customAttributes) => {
+  const loggedError = callParams[0];
+  expect(loggedError.message).toEqual(errorMessage);
+  if (customAttributes) {
+    expect(callParams[1]).toEqual(customAttributes);
+  }
 };
 
 const expectSingleCallToJwtTokenRefresh = () => {
@@ -358,7 +361,17 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] HTTP Client Error: 403 http://auth.example.com/api/refreshToken undefined');
+          expectLogErrorToHaveBeenCalledWithMessage(
+            mockLoggingService.logError.mock.calls[0],
+            '[frontend-auth] HTTP Client Error: 403 http://auth.example.com/api/refreshToken undefined',
+            expect.objectContaining({
+              method: 'post',
+              responseData: '',
+              status: 403,
+              type: 'api-response-error',
+              url: 'http://auth.example.com/api/refreshToken',
+            }),
+          );
           expectLogout();
         });
       });
@@ -377,7 +390,16 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] HTTP Client Error: timeout of 0ms exceeded post http://auth.example.com/api/refreshToken');
+          expectLogErrorToHaveBeenCalledWithMessage(
+            mockLoggingService.logError.mock.calls[0],
+            '[frontend-auth] HTTP Client Error: timeout of 0ms exceeded post http://auth.example.com/api/refreshToken',
+            expect.objectContaining({
+              method: 'post',
+              errorData: 'timeout of 0ms exceeded',
+              type: 'api-request-config-error',
+              url: 'http://auth.example.com/api/refreshToken',
+            }),
+          );
           expectLogout();
         });
       });
@@ -400,7 +422,13 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] Access token is still null after successful refresh.');
+          expectLogErrorToHaveBeenCalledWithMessage(
+            mockLoggingService.logError.mock.calls[0],
+            '[frontend-auth] Access token is still null after successful refresh.',
+            expect.objectContaining({
+              axiosResponse: expect.any(Object),
+            }),
+          );
           expectLogout();
         });
       });
@@ -423,7 +451,16 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] Error decoding JWT token');
+          expectLogErrorToHaveBeenCalledWithMessage(
+            mockLoggingService.logError.mock.calls[0],
+            '[frontend-auth] Error decoding JWT token',
+            expect.objectContaining({ cookieValue: 'malformed jwt' }),
+          );
+          expectLogErrorToHaveBeenCalledWithMessage(
+            mockLoggingService.logError.mock.calls[1],
+            '[frontend-auth] Error decoding JWT token',
+            expect.objectContaining({ cookieValue: 'malformed jwt' }),
+          );
           expectLogout();
         });
       });
@@ -517,7 +554,13 @@ describe('AuthenticatedAPIClient auth interface', () => {
       return client.ensureAuthenticatedUser().catch(() => {
         expectSingleCallToJwtTokenRefresh();
         expectLogout();
-        expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] Access token is still null after successful refresh.');
+        expectLogErrorToHaveBeenCalledWithMessage(
+          mockLoggingService.logError.mock.calls[0],
+          '[frontend-auth] Access token is still null after successful refresh.',
+          expect.objectContaining({
+            axiosResponse: expect.any(Object),
+          }),
+        );
       });
     });
   });
@@ -543,7 +586,10 @@ describe('AuthenticatedAPIClient auth interface', () => {
       return client.ensureAuthenticatedUser().catch(() => {
         expectSingleCallToJwtTokenRefresh();
         expect(window.location.assign).not.toHaveBeenCalled();
-        expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] Redirect from login page. Rejecting to avoid infinite redirect loop.');
+        expectLogErrorToHaveBeenCalledWithMessage(
+          mockLoggingService.logError.mock.calls[0],
+          '[frontend-auth] Redirect from login page. Rejecting to avoid infinite redirect loop.',
+        );
       });
     });
   });
