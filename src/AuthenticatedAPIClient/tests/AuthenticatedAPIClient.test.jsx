@@ -160,7 +160,6 @@ describe('getAuthenticatedAPIClient', () => {
   });
 
   it('throws an error if supplied a logging service without logError', () => {
-    getAuthenticatedAPIClient.__Rewire__('authenticatedAPIClient', null); // eslint-disable-line no-underscore-dangle
     expect.hasAssertions();
     try {
       configureLoggingService({ logInfo: () => {} });
