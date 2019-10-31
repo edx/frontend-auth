@@ -1,6 +1,6 @@
-import { logError } from '@edx/frontend-logging';
 import AccessToken from './AccessToken';
 import CsrfTokens from './CsrfTokens';
+import { logFrontendAuthError } from './utils';
 
 // Apply the auth-related properties and functions to the Axios API client.
 export default function applyAuthInterface(httpClient, authConfig) {
@@ -37,7 +37,7 @@ export default function applyAuthInterface(httpClient, authConfig) {
       authenticatedUserAccessToken = await httpClient.accessToken.get();
     } catch (error) {
       // There were unexpected errors getting the access token.
-      logError(`frontend-auth: ${error.message}`, error.customAttributes);
+      logFrontendAuthError(error);
       httpClient.logout();
       throw error;
     }
@@ -48,7 +48,7 @@ export default function applyAuthInterface(httpClient, authConfig) {
 
       if (isRedirectFromLoginPage) {
         const redirectLoopError = new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.');
-        logError(`frontend-auth: ${redirectLoopError.message}`);
+        logFrontendAuthError(redirectLoopError);
         throw redirectLoopError;
       }
 

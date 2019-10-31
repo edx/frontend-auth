@@ -1,4 +1,5 @@
-import { logInfo, logError } from '@edx/frontend-logging';
+import { getLoggingService } from './index';
+import { logFrontendAuthError } from './utils';
 
 const CSRF_HEADER_NAME = 'X-CSRFToken';
 const CSRF_PROTECTED_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
@@ -42,8 +43,8 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
         return axiosRequestConfig;
       })
       .catch((error) => {
-        logError(`frontend-auth: ${error.message}`, error.customAttributes);
         // There were unexpected errors getting the access token.
+        logFrontendAuthError(error);
         authenticatedAPIClient.logout();
         throw error;
       });
@@ -57,10 +58,10 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
 
     switch (errorStatus) { // eslint-disable-line default-case
       case 401:
-        logInfo(`Unauthorized API response from ${requestUrl}`);
+        getLoggingService().logInfo(`Unauthorized API response from ${requestUrl}`);
         break;
       case 403:
-        logInfo(`Forbidden API response from ${requestUrl}`);
+        getLoggingService().logInfo(`Forbidden API response from ${requestUrl}`);
         break;
     }
 

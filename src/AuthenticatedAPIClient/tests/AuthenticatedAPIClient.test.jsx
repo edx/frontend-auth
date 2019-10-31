@@ -2,10 +2,14 @@
 import axios from 'axios';
 import Cookies from 'universal-cookie';
 import MockAdapter from 'axios-mock-adapter';
-import { NewRelicLoggingService, logInfo, logError } from '@edx/frontend-logging';
 import AccessToken from '../AccessToken';
 import CsrfTokens from '../CsrfTokens';
-import getAuthenticatedAPIClient from '../index';
+import getAuthenticatedAPIClient, { configureLoggingService } from '../index';
+
+const mockLoggingService = {
+  logInfo: jest.fn(),
+  logError: jest.fn(),
+};
 
 const authConfig = {
   appBaseUrl: process.env.BASE_URL,
@@ -14,7 +18,7 @@ const authConfig = {
   loginUrl: process.env.LOGIN_URL,
   logoutUrl: process.env.LOGOUT_URL,
   refreshAccessTokenEndpoint: process.env.REFRESH_ACCESS_TOKEN_ENDPOINT,
-  loggingService: NewRelicLoggingService, // any concrete logging service will do
+  loggingService: mockLoggingService,
 };
 
 // Set up mocks
@@ -88,6 +92,7 @@ const setJwtTokenRefreshResponseTo = (status, jwtCookieValue) => {
   });
 };
 
+
 function expectLogout(redirectUrl = process.env.BASE_URL) {
   const encodedRedirectUrl = encodeURIComponent(redirectUrl);
   expect(window.location.assign)
@@ -99,6 +104,11 @@ function expectLogin(redirectUrl = process.env.BASE_URL) {
   expect(window.location.assign)
     .toHaveBeenCalledWith(`${process.env.LOGIN_URL}?next=${encodedRedirectUrl}`);
 }
+
+const expectLogErrorToHaveBeenCalledWithMessage = (message) => {
+  const loggedError = mockLoggingService.logError.mock.calls[0][0];
+  expect(loggedError.message).toEqual(message);
+};
 
 const expectSingleCallToJwtTokenRefresh = () => {
   expect(accessTokenAxiosMock.history.post.length).toBe(1);
@@ -131,8 +141,8 @@ beforeEach(() => {
   csrfTokensAxiosMock.reset();
   mockCookies.get.mockReset();
   window.location.assign.mockReset();
-  logInfo.mockReset();
-  logError.mockReset();
+  mockLoggingService.logInfo.mockReset();
+  mockLoggingService.logError.mockReset();
   CsrfTokens.__Rewire__('csrfTokenCache', {}); // eslint-disable-line no-underscore-dangle
   axiosMock.onGet('/401').reply(401);
   axiosMock.onGet('/403').reply(403);
@@ -147,6 +157,25 @@ describe('getAuthenticatedAPIClient', () => {
     const client1 = getAuthenticatedAPIClient(authConfig);
     const client2 = getAuthenticatedAPIClient(authConfig);
     expect(client2).toBe(client1);
+  });
+
+  it('throws an error if supplied a logging service without logError', () => {
+    getAuthenticatedAPIClient.__Rewire__('authenticatedAPIClient', null); // eslint-disable-line no-underscore-dangle
+    expect.hasAssertions();
+    try {
+      configureLoggingService({ logInfo: () => {} });
+    } catch (e) {
+      expect(e.message).toEqual('Frontend auth requires a logging service with a logError method');
+    }
+  });
+
+  it('throws an error if supplied a logging service without logInfo', () => {
+    expect.hasAssertions();
+    try {
+      configureLoggingService({ logError: () => {} });
+    } catch (e) {
+      expect(e.message).toEqual('Frontend auth requires a logging service with a logInfo method');
+    }
   });
 });
 
@@ -330,10 +359,26 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expect(logError).toHaveBeenCalledWith(
-            'frontend-auth: Request failed with status code 403',
-            expect.any(Object),
-          );
+          expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] HTTP Client Error: 403 http://auth.example.com/api/refreshToken undefined');
+          expectLogout();
+        });
+      });
+    });
+  });
+
+  describe('The refresh request fails due to a timeout', () => {
+    beforeEach(() => {
+      setJwtCookieTo(null);
+      accessTokenAxiosMock.onPost().timeout();
+    });
+
+    ['get', 'options', 'post', 'put', 'patch', 'delete'].forEach((method) => {
+      it(`${method.toUpperCase()}: throws an error and redirects`, () => {
+        expect.hasAssertions();
+        return client[method](mockApiEndpointPath).catch(() => {
+          expectSingleCallToJwtTokenRefresh();
+          expectNoCallToCsrfTokenFetch();
+          expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] HTTP Client Error: timeout of 0ms exceeded post http://auth.example.com/api/refreshToken');
           expectLogout();
         });
       });
@@ -356,10 +401,7 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expect(logError).toHaveBeenCalledWith(
-            'frontend-auth: Access token is still null after successful refresh.',
-            expect.any(Object),
-          );
+          expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] Access token is still null after successful refresh.');
           expectLogout();
         });
       });
@@ -382,10 +424,7 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expect(logError).toHaveBeenCalledWith(
-            'frontend-auth: Error decoding JWT token.',
-            expect.any(Object),
-          );
+          expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] Error decoding JWT token');
           expectLogout();
         });
       });
@@ -419,7 +458,7 @@ describe('Backstop Logging for api requests', () => {
     setJwtCookieTo(jwtTokens.valid.encoded);
     expect.hasAssertions();
     return client.get('/401').catch(() => {
-      expect(logInfo).toHaveBeenCalledWith('Unauthorized API response from /401');
+      expect(mockLoggingService.logInfo).toHaveBeenCalledWith('Unauthorized API response from /401');
       expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
     });
   });
@@ -428,7 +467,7 @@ describe('Backstop Logging for api requests', () => {
     setJwtCookieTo(jwtTokens.valid.encoded);
     expect.hasAssertions();
     return client.get('/403').catch(() => {
-      expect(logInfo).toHaveBeenCalledWith('Forbidden API response from /403');
+      expect(mockLoggingService.logInfo).toHaveBeenCalledWith('Forbidden API response from /403');
       expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
     });
   });
@@ -479,10 +518,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
       return client.ensureAuthenticatedUser().catch(() => {
         expectSingleCallToJwtTokenRefresh();
         expectLogout();
-        expect(logError).toHaveBeenCalledWith(
-          'frontend-auth: Access token is still null after successful refresh.',
-          expect.any(Object),
-        );
+        expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] Access token is still null after successful refresh.');
       });
     });
   });
@@ -508,7 +544,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
       return client.ensureAuthenticatedUser().catch(() => {
         expectSingleCallToJwtTokenRefresh();
         expect(window.location.assign).not.toHaveBeenCalled();
-        expect(logError).toHaveBeenCalledWith('frontend-auth: Redirect from login page. Rejecting to avoid infinite redirect loop.');
+        expectLogErrorToHaveBeenCalledWithMessage('[frontend-auth] Redirect from login page. Rejecting to avoid infinite redirect loop.');
       });
     });
   });

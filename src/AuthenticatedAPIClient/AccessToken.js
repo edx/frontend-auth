@@ -1,6 +1,7 @@
 import Cookies from 'universal-cookie';
 import jwtDecode from 'jwt-decode';
 import axios from 'axios';
+import { logFrontendAuthError, processAxiosError } from './utils';
 
 const httpClient = axios.create();
 const cookies = new Cookies();
@@ -12,8 +13,9 @@ const decodeJwtCookie = (cookieName) => {
     try {
       return jwtDecode(cookieValue);
     } catch (e) {
-      const error = new Error('Error decoding JWT token.');
-      error.customAttributes = { error: e, cookieValue };
+      const error = Object.create(e);
+      error.message = 'Error decoding JWT token';
+      error.customAttributes = { cookieValue };
       throw error;
     }
   }
@@ -49,13 +51,8 @@ export default class AccessToken {
           // TODO: Network timeouts and other problems will end up in
           // this block of code. We could add logic for retrying token
           // refreshes if we wanted to.
-          error.customAttributes = { // eslint-disable-line no-param-reassign
-            response: error.response,
-            request: error.request,
-            config: error.config,
-            ...error.customAttributes,
-          };
-          throw error;
+          const processedError = processAxiosError(error);
+          throw processedError;
         }
 
         const decodedAccessToken = decodeJwtCookie(this.cookieName);
@@ -87,6 +84,9 @@ export default class AccessToken {
     try {
       decodedAccessToken = decodeJwtCookie(this.cookieName);
     } catch (e) {
+      // Swallow this error and continue because we
+      // are about to attempt to refresh it.
+      logFrontendAuthError(e);
       decodedAccessToken = null;
     }
 
