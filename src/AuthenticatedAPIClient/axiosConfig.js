@@ -50,7 +50,7 @@ function applyAxiosInterceptors(authenticatedAPIClient) {
       });
   }
 
-  // Log errors and info for unauthorized API responses
+  // Log info for unauthorized API responses
   function handleUnauthorizedAPIResponse(error) {
     const response = error && error.response;
     const errorStatus = response && response.status;
