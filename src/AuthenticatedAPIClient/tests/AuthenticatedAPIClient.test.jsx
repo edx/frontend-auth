@@ -179,7 +179,7 @@ describe('getAuthenticatedAPIClient', () => {
 });
 
 describe('User is logged in', () => {
-  describe('No token exists on load', () => {
+  describe('No jwt cookie exists on load', () => {
     beforeEach(() => {
       setJwtCookieTo(null);
       setJwtTokenRefreshResponseTo(200, jwtTokens.valid.encoded);
@@ -452,7 +452,7 @@ beforeEach(() => {
   setJwtTokenRefreshResponseTo(200, jwtTokens.valid.encoded);
 });
 
-describe('Backstop Logging for api requests', () => {
+describe('Info logging for authorization errors from api requests with a valid token', () => {
   it('logs info for 401 unauthorized api responses', () => {
     setJwtCookieTo(jwtTokens.valid.encoded);
     expect.hasAssertions();
