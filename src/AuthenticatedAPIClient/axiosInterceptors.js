@@ -4,8 +4,6 @@ import { processAxiosError } from './utils';
 import getCsrfToken from './getCsrfToken';
 import getJwtToken from './getJwtToken';
 
-const CSRF_HEADER_NAME = 'X-CSRFToken';
-
 const csrfTokenProviderInterceptor = (options) => {
   const { csrfTokenApiPath, isExempt } = options;
 
@@ -17,6 +15,7 @@ const csrfTokenProviderInterceptor = (options) => {
     }
     const { url } = axiosRequestConfig;
     const csrfToken = await getCsrfToken(url, csrfTokenApiPath);
+    const CSRF_HEADER_NAME = 'X-CSRFToken';
     // eslint-disable-next-line no-param-reassign
     axiosRequestConfig.headers[CSRF_HEADER_NAME] = csrfToken;
     return axiosRequestConfig;
