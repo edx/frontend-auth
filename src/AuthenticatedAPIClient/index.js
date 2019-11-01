@@ -92,8 +92,21 @@ function getAuthenticatedAPIClient(authConfig) {
   return authenticatedAPIClient;
 }
 
+/**
+ * Gets the authenticated user's access token.
+ *
+ * @returns Promise that resolves to { userId, username, roles, administrator } or null
+ */
 const getAuthenticatedUserAccessToken = async () => {
-  const decodedAccessToken = await getJwtToken(config.accessTokenCookieName, config.refreshAccessTokenEndpoint);
+  let decodedAccessToken;
+
+  try {
+    decodedAccessToken = await getJwtToken(config.accessTokenCookieName, config.refreshAccessTokenEndpoint);
+  } catch (error) {
+    // There were unexpected errors getting the access token.
+    handleUnexpectedAccessTokenRefreshError(error);
+  }
+
   if (decodedAccessToken !== null) {
     return {
       userId: decodedAccessToken.user_id,
@@ -110,17 +123,10 @@ const getAuthenticatedUserAccessToken = async () => {
  * Ensures a user is authenticated, including redirecting to login when not authenticated.
  *
  * @param route: used to return user after login when not authenticated.
- * @returns Promise that resolves to { authenticatedUser: {...}, decodedAccessToken: {...}}
+ * @returns Promise that resolves to { userId, username, roles, administrator }
  */
 const ensureAuthenticatedUser = async (route) => {
-  let authenticatedUserAccessToken = null;
-
-  try {
-    authenticatedUserAccessToken = await getAuthenticatedUserAccessToken();
-  } catch (error) {
-    // There were unexpected errors getting the access token.
-    handleUnexpectedAccessTokenRefreshError(error);
-  }
+  const authenticatedUserAccessToken = await getAuthenticatedUserAccessToken();
 
   if (authenticatedUserAccessToken === null) {
     const isRedirectFromLoginPage = global.document.referrer &&
