@@ -31,13 +31,18 @@ const csrfTokenProviderInterceptor = (options) => {
 
 const jwtTokenProviderInterceptor = (options) => {
   const {
-    handleEmptyToken, tokenCookieName, tokenRefreshEndpoint,
+    handleEmptyToken, tokenCookieName, tokenRefreshEndpoint, handleUnexpectedRefreshError,
   } = options;
 
   // Creating the interceptor inside this closure to
   // maintain reference to the options supplied.
   const interceptor = async (axiosRequestConfig) => {
-    const decodedJwtToken = await getJwtToken(tokenCookieName, tokenRefreshEndpoint);
+    let decodedJwtToken;
+    try {
+      decodedJwtToken = await getJwtToken(tokenCookieName, tokenRefreshEndpoint);
+    } catch (error) {
+      handleUnexpectedRefreshError(error);
+    }
     if (decodedJwtToken === null) {
       handleEmptyToken();
     }

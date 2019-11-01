@@ -52,6 +52,12 @@ const jwtTokens = {
       administrator: false,
       exp: tomorrowInSeconds,
     },
+    formatted: {
+      userId: '12345',
+      username: 'test',
+      administrator: false,
+      roles: [],
+    },
   },
   validWithRoles: {
     decoded: {
@@ -60,6 +66,12 @@ const jwtTokens = {
       administrator: true,
       roles: ['role1', 'role2'],
       exp: tomorrowInSeconds,
+    },
+    formatted: {
+      userId: '12345',
+      username: 'test',
+      administrator: true,
+      roles: ['role1', 'role2'],
     },
   },
 };
@@ -175,6 +187,17 @@ describe('getAuthenticatedAPIClient', () => {
     const client1 = getAuthenticatedAPIClient(authConfig);
     const client2 = getAuthenticatedAPIClient(authConfig);
     expect(client2).toBe(client1);
+  });
+
+  it('throws an error if supplied an incomplete config', () => {
+    expect.hasAssertions();
+    try {
+      configure({
+        notwhatitneeds: 'yup',
+      });
+    } catch (e) {
+      expect(e.message).toEqual('Invalid configuration supplied to frontend auth. appBaseUrl is required.');
+    }
   });
 
   it('throws an error if supplied a logging service without logError', () => {
@@ -552,7 +575,7 @@ describe('ensureAuthenticatedUser', () => {
       setJwtCookieTo(null);
       setJwtTokenRefreshResponseTo(200, jwtTokens.valid.encoded);
       return ensureAuthenticatedUser().then((authenticatedUserAccessToken) => {
-        expect(authenticatedUserAccessToken.decodedAccessToken).toEqual(jwtTokens.valid.decoded);
+        expect(authenticatedUserAccessToken).toEqual(jwtTokens.valid.formatted);
         expectSingleCallToJwtTokenRefresh();
       });
     });
@@ -561,7 +584,7 @@ describe('ensureAuthenticatedUser', () => {
       setJwtCookieTo(null);
       setJwtTokenRefreshResponseTo(200, jwtTokens.validWithRoles.encoded);
       return ensureAuthenticatedUser().then((authenticatedUserAccessToken) => {
-        expect(authenticatedUserAccessToken.decodedAccessToken).toEqual(jwtTokens.validWithRoles.decoded);
+        expect(authenticatedUserAccessToken).toEqual(jwtTokens.validWithRoles.formatted);
         expectSingleCallToJwtTokenRefresh();
       });
     });

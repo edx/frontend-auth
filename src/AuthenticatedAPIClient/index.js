@@ -52,47 +52,59 @@ const redirectToLogout = (redirectUrl = config.appBaseUrl) => {
   global.location.assign(`${config.logoutUrl}?redirect_url=${encodeURIComponent(redirectUrl)}`);
 };
 
+const handleUnexpectedAccessTokenRefreshError = (error) => {
+  // There were unexpected errors getting the access token.
+  logFrontendAuthError(error);
+  redirectToLogout();
+  throw error;
+};
+
 function getAuthenticatedAPIClient(authConfig) {
   if (authenticatedAPIClient === null) {
-    authenticatedAPIClient = axios.create();
     configure(authConfig);
 
+    authenticatedAPIClient = axios.create();
 
-    const handleJwtTokenRefreshError = (error) => {
-      // There were unexpected errors getting the access token.
-      logFrontendAuthError(error);
-      redirectToLogout();
-      throw error;
-    };
+    const ensureAccessTokenInterceptor = jwtTokenProviderInterceptor({
+      tokenCookieName: config.accessTokenCookieName,
+      tokenRefreshEndpoint: config.refreshAccessTokenEndpoint,
+      handleEmptyToken: config.handleEmptyAccessToken || redirectToLogin,
+      handleUnexpectedRefreshError: handleUnexpectedAccessTokenRefreshError,
+    });
 
-    const handleEmptyAccessToken = () => {
-      if (config.handleEmptyAccessToken) {
-        handleEmptyAccessToken();
-      } else {
-        redirectToLogin();
-      }
-    };
+    const attachCsrfTokenInterceptor = csrfTokenProviderInterceptor({
+      csrfTokenApiPath: config.csrfTokenApiPath,
+    });
 
     // Apply Axios interceptors
     // Axios runs the interceptors in reverse order from how they are listed.
     // ensureValidJWTCookie needs to run first to ensure the user is authenticated
     // before making the CSRF token request.
-    authenticatedAPIClient.interceptors.request.use(csrfTokenProviderInterceptor({
-      csrfTokenApiPath: config.csrfTokenApiPath,
-    }));
+    authenticatedAPIClient.interceptors.request.use(attachCsrfTokenInterceptor);
+    authenticatedAPIClient.interceptors.request.use(ensureAccessTokenInterceptor);
 
-    authenticatedAPIClient.interceptors.request.use(requestConfig => requestConfig, handleJwtTokenRefreshError);
-    authenticatedAPIClient.interceptors.request.use(jwtTokenProviderInterceptor({
-      handleEmptyToken: handleEmptyAccessToken,
-      tokenCookieName: config.accessTokenCookieName,
-      tokenRefreshEndpoint: config.refreshAccessTokenEndpoint,
-    }));
-
-    authenticatedAPIClient.interceptors.response.use(response => response, processAxiosRequestErrorInterceptor);
+    authenticatedAPIClient.interceptors.response.use(
+      response => response,
+      processAxiosRequestErrorInterceptor,
+    );
   }
 
   return authenticatedAPIClient;
 }
+
+const getAuthenticatedUserAccessToken = async () => {
+  const decodedAccessToken = await getJwtToken(config.accessTokenCookieName, config.refreshAccessTokenEndpoint);
+  if (decodedAccessToken !== null) {
+    return {
+      userId: decodedAccessToken.user_id,
+      username: decodedAccessToken.preferred_username,
+      roles: decodedAccessToken.roles ? decodedAccessToken.roles : [],
+      administrator: decodedAccessToken.administrator,
+    };
+  }
+
+  return null;
+};
 
 /**
  * Ensures a user is authenticated, including redirecting to login when not authenticated.
@@ -104,23 +116,10 @@ const ensureAuthenticatedUser = async (route) => {
   let authenticatedUserAccessToken = null;
 
   try {
-    const decodedAccessToken = await getJwtToken(config.accessTokenCookieName, config.refreshAccessTokenEndpoint);
-    if (decodedAccessToken !== null) {
-      authenticatedUserAccessToken = {
-        authenticatedUser: {
-          userId: decodedAccessToken.user_id,
-          username: decodedAccessToken.preferred_username,
-          roles: decodedAccessToken.roles ? decodedAccessToken.roles : [],
-          administrator: decodedAccessToken.administrator,
-        },
-        decodedAccessToken,
-      };
-    }
+    authenticatedUserAccessToken = await getAuthenticatedUserAccessToken();
   } catch (error) {
     // There were unexpected errors getting the access token.
-    logFrontendAuthError(error);
-    redirectToLogout();
-    throw error;
+    handleUnexpectedAccessTokenRefreshError(error);
   }
 
   if (authenticatedUserAccessToken === null) {
@@ -145,6 +144,7 @@ export {
   getConfig,
   getAuthenticatedAPIClient,
   ensureAuthenticatedUser,
+  getAuthenticatedUserAccessToken,
   redirectToLogin,
   redirectToLogout,
 };
