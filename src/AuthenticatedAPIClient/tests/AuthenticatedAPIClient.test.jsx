@@ -132,7 +132,7 @@ function expectLogin(redirectUrl = process.env.BASE_URL) {
 
 // customAttributes is sent into expect.objectContaining
 // and can include other matchers in the object like expect.any(Number)
-const expectLogErrorToHaveBeenCalledWithMessage = (callParams, errorMessage, customAttributes) => {
+const expectLogFunctionToHaveBeenCalledWithMessage = (callParams, errorMessage, customAttributes) => {
   const loggedError = callParams[0];
   expect(loggedError.message).toEqual(errorMessage);
   if (customAttributes) {
@@ -174,8 +174,8 @@ beforeEach(() => {
   mockLoggingService.logInfo.mockReset();
   mockLoggingService.logError.mockReset();
   getCsrfToken.__Rewire__('csrfTokenCache', {}); // eslint-disable-line no-underscore-dangle
-  axiosMock.onGet('/401').reply(401);
-  axiosMock.onGet('/403').reply(403);
+  axiosMock.onGet('/unauthorized').reply(401);
+  axiosMock.onGet('/forbidden').reply(403);
   axiosMock.onAny().reply(200);
   csrfTokensAxiosMock
     .onGet(process.env.CSRF_TOKEN_REFRESH)
@@ -407,7 +407,7 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expectLogErrorToHaveBeenCalledWithMessage(
+          expectLogFunctionToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[0],
             '[frontend-auth] HTTP Client Error: 403 http://auth.example.com/api/refreshToken (empty response)',
             {
@@ -436,7 +436,7 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expectLogErrorToHaveBeenCalledWithMessage(
+          expectLogFunctionToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[0],
             '[frontend-auth] HTTP Client Error: timeout of 0ms exceeded post http://auth.example.com/api/refreshToken',
             {
@@ -468,7 +468,7 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expectLogErrorToHaveBeenCalledWithMessage(
+          expectLogFunctionToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[0],
             '[frontend-auth] Access token is still null after successful refresh.',
             { axiosResponse: expect.any(Object) },
@@ -495,12 +495,12 @@ describe('Token refresh failures', () => {
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
           expectNoCallToCsrfTokenFetch();
-          expectLogErrorToHaveBeenCalledWithMessage(
+          expectLogFunctionToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[0],
             '[frontend-auth] Error decoding JWT token',
             { cookieValue: 'malformed jwt' },
           );
-          expectLogErrorToHaveBeenCalledWithMessage(
+          expectLogFunctionToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[1],
             '[frontend-auth] Error decoding JWT token',
             { cookieValue: 'malformed jwt' },
@@ -537,8 +537,18 @@ describe('Info logging for authorization errors from api requests with a valid t
   it('logs info for 401 unauthorized api responses', () => {
     setJwtCookieTo(jwtTokens.valid.encoded);
     expect.hasAssertions();
-    return client.get('/401').catch(() => {
-      expect(mockLoggingService.logInfo).toHaveBeenCalledWith('Unauthorized API response from /401');
+    return client.get('/unauthorized').catch(() => {
+      expectLogFunctionToHaveBeenCalledWithMessage(
+        mockLoggingService.logInfo.mock.calls[0],
+        'HTTP Client Error: 401 /unauthorized (empty response)',
+        {
+          httpErrorRequestMethod: 'get',
+          httpErrorStatus: 401,
+          httpErrorType: 'api-response-error',
+          httpErrorRequestUrl: '/unauthorized',
+          httpErrorResponseData: '(empty response)',
+        },
+      );
       expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
     });
   });
@@ -546,8 +556,18 @@ describe('Info logging for authorization errors from api requests with a valid t
   it('logs info for 403 forbidden api responses', () => {
     setJwtCookieTo(jwtTokens.valid.encoded);
     expect.hasAssertions();
-    return client.get('/403').catch(() => {
-      expect(mockLoggingService.logInfo).toHaveBeenCalledWith('Forbidden API response from /403');
+    return client.get('/forbidden').catch(() => {
+      expectLogFunctionToHaveBeenCalledWithMessage(
+        mockLoggingService.logInfo.mock.calls[0],
+        'HTTP Client Error: 403 /forbidden (empty response)',
+        {
+          httpErrorRequestMethod: 'get',
+          httpErrorStatus: 403,
+          httpErrorType: 'api-response-error',
+          httpErrorRequestUrl: '/forbidden',
+          httpErrorResponseData: '(empty response)',
+        },
+      );
       expectRequestToHaveJwtAuth(axiosMock.history.get[0]);
     });
   });
@@ -600,7 +620,7 @@ describe('ensureAuthenticatedUser', () => {
       return ensureAuthenticatedUser().catch(() => {
         expectSingleCallToJwtTokenRefresh();
         expectLogout();
-        expectLogErrorToHaveBeenCalledWithMessage(
+        expectLogFunctionToHaveBeenCalledWithMessage(
           mockLoggingService.logError.mock.calls[0],
           '[frontend-auth] Access token is still null after successful refresh.',
           { axiosResponse: expect.any(Object) },
@@ -630,7 +650,7 @@ describe('ensureAuthenticatedUser', () => {
       return ensureAuthenticatedUser().catch(() => {
         expectSingleCallToJwtTokenRefresh();
         expect(window.location.assign).not.toHaveBeenCalled();
-        expectLogErrorToHaveBeenCalledWithMessage(
+        expectLogFunctionToHaveBeenCalledWithMessage(
           mockLoggingService.logError.mock.calls[0],
           '[frontend-auth] Redirect from login page. Rejecting to avoid infinite redirect loop.',
         );

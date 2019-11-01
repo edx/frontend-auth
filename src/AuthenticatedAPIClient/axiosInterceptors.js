@@ -1,5 +1,6 @@
 
 import { getConfig } from './index';
+import { processAxiosError } from './utils';
 import getCsrfToken from './getCsrfToken';
 import getJwtToken from './getJwtToken';
 
@@ -58,20 +59,9 @@ const jwtTokenProviderInterceptor = (options) => {
 };
 
 const processAxiosRequestErrorInterceptor = (error) => {
-  const response = error && error.response;
-  const errorStatus = response && response.status;
-  const requestUrl = response && response.config && response.config.url;
-
-  switch (errorStatus) { // eslint-disable-line default-case
-    case 401:
-      getConfig('loggingService').logInfo(`Unauthorized API response from ${requestUrl}`);
-      break;
-    case 403:
-      getConfig('loggingService').logInfo(`Forbidden API response from ${requestUrl}`);
-      break;
-  }
-
-  return Promise.reject(error);
+  const processedError = processAxiosError(error);
+  getConfig('loggingService').logInfo(processedError, processedError.customAttributes);
+  return Promise.reject(processedError);
 };
 
 export {
