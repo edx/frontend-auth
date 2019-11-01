@@ -59,30 +59,37 @@ const handleUnexpectedAccessTokenRefreshError = (error) => {
   throw error;
 };
 
-function getAuthenticatedAPIClient(authConfig) {
+function getAuthenticatedApiClient(authConfig) {
   if (authenticatedAPIClient === null) {
     configure(authConfig);
-
     authenticatedAPIClient = axios.create();
 
-    const ensureAccessTokenInterceptor = jwtTokenProviderInterceptor({
+    // Axios interceptors
+    const refreshAccessTokenInterceptor = jwtTokenProviderInterceptor({
       tokenCookieName: config.accessTokenCookieName,
       tokenRefreshEndpoint: config.refreshAccessTokenEndpoint,
-      handleEmptyToken: config.handleEmptyAccessToken || redirectToLogin,
+      handleEmptyToken: config.handleEmptyAccessToken,
       handleUnexpectedRefreshError: handleUnexpectedAccessTokenRefreshError,
+      isExempt: axiosRequestConfig => axiosRequestConfig.isPublic,
     });
-
     const attachCsrfTokenInterceptor = csrfTokenProviderInterceptor({
       csrfTokenApiPath: config.csrfTokenApiPath,
+      isExempt: (axiosRequestConfig) => {
+        const { method, isCsrfExempt } = axiosRequestConfig;
+        const CSRF_PROTECTED_METHODS = ['post', 'put', 'patch', 'delete'];
+        return isCsrfExempt || !CSRF_PROTECTED_METHODS.includes(method);
+      },
     });
 
-    // Apply Axios interceptors
-    // Axios runs the interceptors in reverse order from how they are listed.
-    // ensureValidJWTCookie needs to run first to ensure the user is authenticated
-    // before making the CSRF token request.
+    // Request interceptors: Axios runs the interceptors in reverse
+    // order from how they are listed. Since fetching csrf token does
+    // not require jwt authentication, it doesn't matter which
+    // happens first.
     authenticatedAPIClient.interceptors.request.use(attachCsrfTokenInterceptor);
-    authenticatedAPIClient.interceptors.request.use(ensureAccessTokenInterceptor);
+    authenticatedAPIClient.interceptors.request.use(refreshAccessTokenInterceptor);
 
+    // Rresponse interceptor: moves axios response error data into
+    // the error object at error.customAttributes
     authenticatedAPIClient.interceptors.response.use(
       response => response,
       processAxiosRequestErrorInterceptor,
@@ -111,7 +118,7 @@ const getAuthenticatedUserAccessToken = async () => {
     return {
       userId: decodedAccessToken.user_id,
       username: decodedAccessToken.preferred_username,
-      roles: decodedAccessToken.roles ? decodedAccessToken.roles : [],
+      roles: decodedAccessToken.roles || [],
       administrator: decodedAccessToken.administrator,
     };
   }
@@ -148,7 +155,7 @@ const ensureAuthenticatedUser = async (route) => {
 export {
   configure,
   getConfig,
-  getAuthenticatedAPIClient,
+  getAuthenticatedApiClient,
   ensureAuthenticatedUser,
   getAuthenticatedUserAccessToken,
   redirectToLogin,

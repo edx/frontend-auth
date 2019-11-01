@@ -6,7 +6,7 @@ import getJwtToken from '../getJwtToken';
 import getCsrfToken from '../getCsrfToken';
 import {
   configure,
-  getAuthenticatedAPIClient,
+  getAuthenticatedApiClient,
   ensureAuthenticatedUser,
   redirectToLogin,
   redirectToLogout,
@@ -25,6 +25,7 @@ const authConfig = {
   loginUrl: process.env.LOGIN_URL,
   logoutUrl: process.env.LOGOUT_URL,
   refreshAccessTokenEndpoint: process.env.REFRESH_ACCESS_TOKEN_ENDPOINT,
+  handleEmptyAccessToken: jest.fn(),
   loggingService: mockLoggingService,
   userInfoCookieName: 'user-cookie',
 };
@@ -98,7 +99,7 @@ const csrfTokensAxiosMock = new MockAdapter(csrfTokensAxios);
 getCsrfToken.__Rewire__('httpClient', csrfTokensAxios); // eslint-disable-line no-underscore-dangle
 
 
-const client = getAuthenticatedAPIClient(authConfig);
+const client = getAuthenticatedApiClient(authConfig);
 
 // Helpers
 const setJwtCookieTo = (jwtCookieValue) => {
@@ -180,12 +181,13 @@ beforeEach(() => {
   csrfTokensAxiosMock
     .onGet(process.env.CSRF_TOKEN_REFRESH)
     .reply(200, { csrfToken: mockCsrfToken });
+  authConfig.handleEmptyAccessToken.mockReset();
 });
 
-describe('getAuthenticatedAPIClient', () => {
+describe('getAuthenticatedApiClient', () => {
   it('returns a singleton', () => {
-    const client1 = getAuthenticatedAPIClient(authConfig);
-    const client2 = getAuthenticatedAPIClient(authConfig);
+    const client1 = getAuthenticatedApiClient(authConfig);
+    const client2 = getAuthenticatedApiClient(authConfig);
     expect(client2).toBe(client1);
   });
 
@@ -519,11 +521,47 @@ describe('User is logged out', () => {
   });
 
   ['get', 'options', 'post', 'put', 'patch', 'delete'].forEach((method) => {
-    it(`${method.toUpperCase()}: redirects to login`, () => {
+    it(`${method.toUpperCase()}: does not redirect to login`, () => {
       return client[method](mockApiEndpointPath).then(() => {
         expectSingleCallToJwtTokenRefresh();
-        expectLogin();
+        expect(authConfig.handleEmptyAccessToken).toHaveBeenCalled();
+        expect(window.location.assign).not.toHaveBeenCalled();
       });
+    });
+  });
+});
+
+describe('JWT and CSRF exempt requests', () => {
+  beforeEach(() => {
+    setJwtCookieTo(null);
+    setJwtTokenRefreshResponseTo(401, null);
+  });
+
+  ['get', 'options'].forEach((method) => {
+    it(`${method.toUpperCase()}: does not refresh the JWT or redirect`, () => {
+      return client[method](mockApiEndpointPath, { isPublic: true }).then(() => {
+        expectNoCallToJwtTokenRefresh();
+        expectNoCallToCsrfTokenFetch();
+        expect(window.location.assign).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  ['post', 'put', 'patch'].forEach((method) => {
+    it(`${method.toUpperCase()}: does not refresh the JWT or redirect`, () => {
+      return client[method](mockApiEndpointPath, {/* payload data */}, { isPublic: true }).then(() => {
+        expectNoCallToJwtTokenRefresh();
+        expectSingleCallToCsrfTokenFetch();
+        expect(window.location.assign).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  it('DELETE: does not refresh the JWT or redirect', () => {
+    return client.delete(mockApiEndpointPath, { isPublic: true }).then(() => {
+      expectNoCallToJwtTokenRefresh();
+      expectSingleCallToCsrfTokenFetch();
+      expect(window.location.assign).not.toHaveBeenCalled();
     });
   });
 });

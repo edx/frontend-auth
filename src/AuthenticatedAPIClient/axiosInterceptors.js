@@ -5,26 +5,21 @@ import getCsrfToken from './getCsrfToken';
 import getJwtToken from './getJwtToken';
 
 const CSRF_HEADER_NAME = 'X-CSRFToken';
-const CSRF_PROTECTED_METHODS = ['POST', 'PUT', 'PATCH', 'DELETE'];
 
 const csrfTokenProviderInterceptor = (options) => {
-  const { csrfTokenApiPath } = options;
+  const { csrfTokenApiPath, isExempt } = options;
 
   // Creating the interceptor inside this closure to
   // maintain reference to the options supplied.
-  const interceptor = (axiosRequestConfig) => {
-    const { url, method } = axiosRequestConfig;
-    const isCsrfTokenRequired = CSRF_PROTECTED_METHODS.includes(method.toUpperCase());
-
-    if (isCsrfTokenRequired) {
-      return getCsrfToken(url, csrfTokenApiPath).then((csrfToken) => {
-        // eslint-disable-next-line no-param-reassign
-        axiosRequestConfig.headers[CSRF_HEADER_NAME] = csrfToken;
-        return axiosRequestConfig;
-      });
+  const interceptor = async (axiosRequestConfig) => {
+    if (isExempt(axiosRequestConfig)) {
+      return axiosRequestConfig;
     }
-
-    return Promise.resolve(axiosRequestConfig);
+    const { url } = axiosRequestConfig;
+    const csrfToken = await getCsrfToken(url, csrfTokenApiPath);
+    // eslint-disable-next-line no-param-reassign
+    axiosRequestConfig.headers[CSRF_HEADER_NAME] = csrfToken;
+    return axiosRequestConfig;
   };
 
   return interceptor;
@@ -32,26 +27,37 @@ const csrfTokenProviderInterceptor = (options) => {
 
 const jwtTokenProviderInterceptor = (options) => {
   const {
-    handleEmptyToken, tokenCookieName, tokenRefreshEndpoint, handleUnexpectedRefreshError,
+    handleEmptyToken,
+    tokenCookieName,
+    tokenRefreshEndpoint,
+    handleUnexpectedRefreshError,
+    isExempt,
   } = options;
 
   // Creating the interceptor inside this closure to
   // maintain reference to the options supplied.
   const interceptor = async (axiosRequestConfig) => {
+    if (isExempt(axiosRequestConfig)) {
+      return axiosRequestConfig;
+    }
+
     let decodedJwtToken;
     try {
       decodedJwtToken = await getJwtToken(tokenCookieName, tokenRefreshEndpoint);
     } catch (error) {
       handleUnexpectedRefreshError(error);
     }
-    if (decodedJwtToken === null) {
+
+    if (decodedJwtToken === null && handleEmptyToken !== undefined) {
       handleEmptyToken();
+    } else {
+      // Add the proper headers to tell the server to look for the jwt cookie
+      /* eslint-disable no-param-reassign */
+      axiosRequestConfig.withCredentials = true;
+      axiosRequestConfig.headers.common['USE-JWT-COOKIE'] = true;
+      /* eslint-enable no-param-reassign */
     }
 
-    /* eslint-disable no-param-reassign */
-    axiosRequestConfig.withCredentials = true;
-    axiosRequestConfig.headers.common['USE-JWT-COOKIE'] = true;
-    /* eslint-enable no-param-reassign */
     return axiosRequestConfig;
   };
 

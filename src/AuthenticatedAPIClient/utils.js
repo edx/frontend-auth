@@ -40,6 +40,7 @@ const logFrontendAuthError = (error) => {
 const processAxiosError = (axiosErrorObject) => {
   const error = Object.create(axiosErrorObject);
   const { request, response, config } = error;
+  // console.log(axiosErrorObject)
   const {
     url: httpErrorRequestUrl,
     method: httpErrorRequestMethod,
