@@ -60,7 +60,10 @@ const jwtTokenProviderInterceptor = (options) => {
 
 const processAxiosRequestErrorInterceptor = (error) => {
   const processedError = processAxiosError(error);
-  getConfig('loggingService').logInfo(processedError, processedError.customAttributes);
+  const { httpErrorStatus } = processedError.customAttributes;
+  if (httpErrorStatus === 401 || httpErrorStatus === 403) {
+    getConfig('loggingService').logInfo(processedError, processedError.customAttributes);
+  }
   return Promise.reject(processedError);
 };
 
