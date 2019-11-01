@@ -44,10 +44,20 @@ function getConfig(property) {
   return config[property];
 }
 
+/**
+ * Redirect the user to login
+ *
+ * @param {string} redirectUrl the url to redirect to after login
+ */
 const redirectToLogin = (redirectUrl = config.appBaseUrl) => {
   global.location.assign(`${config.loginUrl}?next=${encodeURIComponent(redirectUrl)}`);
 };
 
+/**
+ * Redirect the user to logout
+ *
+ * @param {string} redirectUrl the url to redirect to after logout
+ */
 const redirectToLogout = (redirectUrl = config.appBaseUrl) => {
   global.location.assign(`${config.logoutUrl}?redirect_url=${encodeURIComponent(redirectUrl)}`);
 };
@@ -59,6 +69,40 @@ const handleUnexpectedAccessTokenRefreshError = (error) => {
   throw error;
 };
 
+/**
+ * @typedef HttpClient
+ * 
+ * A configured axios client. See axios docs for more
+ * info https://github.com/axios/axios. All the functions
+ * below accept isPublic and isCsrfExempt in the request
+ * config options. Setting these to true will prevent this
+ * client from attempting to refresh the jwt access token
+ * or a csrf token respectively.
+ * 
+ * @property {function} get
+ * @property {function} head
+ * @property {function} options
+ * @property {function} delete (csrf protected)
+ * @property {function} post (csrf protected)
+ * @property {function} put (csrf protected)
+ * @property {function} patch (csrf protected)
+ */
+
+/**
+ * Gets the apiClient singleton which is an axios instance.
+ * 
+ * @param {object} config 
+ * @param {string} [config.appBaseUrl]
+ * @param {string} [config.authBaseUrl]
+ * @param {string} [config.loginUrl]
+ * @param {string} [config.logoutUrl]
+ * @param {function} [config.handleEmptyAccessToken] (optional)
+ * @param {object} [config.loggingService] requires logError and logInfo methods
+ * @param {string} [config.refreshAccessTokenEndpoint]
+ * @param {string} [config.accessTokenCookieName]
+ * @param {string} [config.csrfTokenApiPath]
+ * @returns {HttpClient} Singleton. A configured axios http client
+ */
 function getAuthenticatedApiClient(authConfig) {
   if (authenticatedAPIClient === null) {
     configure(authConfig);
@@ -88,7 +132,7 @@ function getAuthenticatedApiClient(authConfig) {
     authenticatedAPIClient.interceptors.request.use(attachCsrfTokenInterceptor);
     authenticatedAPIClient.interceptors.request.use(refreshAccessTokenInterceptor);
 
-    // Rresponse interceptor: moves axios response error data into
+    // Response interceptor: moves axios response error data into
     // the error object at error.customAttributes
     authenticatedAPIClient.interceptors.response.use(
       response => response,
@@ -100,9 +144,17 @@ function getAuthenticatedApiClient(authConfig) {
 }
 
 /**
- * Gets the authenticated user's access token.
+ * @typedef UserAccessToken
+ * @property {string} userId
+ * @property {string} username
+ * @property {array} roles
+ * @property {bool} administrator
+ */
+
+/**
+ * Gets the authenticated user's access token. Null is
  *
- * @returns Promise that resolves to { userId, username, roles, administrator } or null
+ * @returns {Promise<UserAccessToken>} Resolves to null if the user is unauthenticated
  */
 const getAuthenticatedUserAccessToken = async () => {
   let decodedAccessToken;
@@ -127,10 +179,10 @@ const getAuthenticatedUserAccessToken = async () => {
 };
 
 /**
- * Ensures a user is authenticated, including redirecting to login when not authenticated.
+ * Ensures a user is authenticated. It will redirect to login when not authenticated.
  *
- * @param route: used to return user after login when not authenticated.
- * @returns Promise that resolves to { userId, username, roles, administrator }
+ * @param {string} route to return user after login when not authenticated.
+ * @returns {Promise<UserAccessToken>}
  */
 const ensureAuthenticatedUser = async (route) => {
   const authenticatedUserAccessToken = await getAuthenticatedUserAccessToken();
