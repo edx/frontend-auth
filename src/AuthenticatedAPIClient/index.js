@@ -70,8 +70,6 @@ const handleUnexpectedAccessTokenRefreshError = (error) => {
 };
 
 /**
- * @typedef HttpClient
- * 
  * A configured axios client. See axios docs for more
  * info https://github.com/axios/axios. All the functions
  * below accept isPublic and isCsrfExempt in the request
@@ -79,6 +77,7 @@ const handleUnexpectedAccessTokenRefreshError = (error) => {
  * client from attempting to refresh the jwt access token
  * or a csrf token respectively.
  * 
+ * @typedef HttpClient
  * @property {function} get
  * @property {function} head
  * @property {function} options

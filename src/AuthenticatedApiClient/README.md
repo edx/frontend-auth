@@ -22,7 +22,13 @@
 
 <dl>
 <dt><a href="#HttpClient">HttpClient</a></dt>
-<dd></dd>
+<dd><p>A configured axios client. See axios docs for more
+info <a href="https://github.com/axios/axios">https://github.com/axios/axios</a>. All the functions
+below accept isPublic and isCsrfExempt in the request
+config options. Setting these to true will prevent this
+client from attempting to refresh the jwt access token
+or a csrf token respectively.</p>
+</dd>
 <dt><a href="#UserAccessToken">UserAccessToken</a></dt>
 <dd></dd>
 </dl>
@@ -91,6 +97,13 @@ Ensures a user is authenticated. It will redirect to login when not authenticate
 <a name="HttpClient"></a>
 
 ## HttpClient
+A configured axios client. See axios docs for more
+info https://github.com/axios/axios. All the functions
+below accept isPublic and isCsrfExempt in the request
+config options. Setting these to true will prevent this
+client from attempting to refresh the jwt access token
+or a csrf token respectively.
+
 **Kind**: global typedef  
 **Properties**
 
