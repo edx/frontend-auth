@@ -368,7 +368,7 @@ describe('Token refresh failures', () => {
               method: 'post',
               responseData: '',
               status: 403,
-              type: 'api-response-error',
+              errorType: 'api-response-error',
               url: 'http://auth.example.com/api/refreshToken',
             }),
           );
@@ -396,7 +396,7 @@ describe('Token refresh failures', () => {
             expect.objectContaining({
               method: 'post',
               errorData: 'timeout of 0ms exceeded',
-              type: 'api-request-config-error',
+              errorType: 'api-request-config-error',
               url: 'http://auth.example.com/api/refreshToken',
             }),
           );

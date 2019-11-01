@@ -51,7 +51,7 @@ const processAxiosError = (axiosErrorObject) => {
     const responseData = responseIsHTML ? '<Response is HTML>' : stringifiedData;
     error.customAttributes = {
       ...error.customAttributes,
-      type: 'api-response-error',
+      errorType: 'api-response-error',
       status: requestStatus,
       responseData,
       url,
@@ -61,7 +61,7 @@ const processAxiosError = (axiosErrorObject) => {
   } else if (request) {
     error.customAttributes = {
       ...error.customAttributes,
-      type: 'api-request-error',
+      errorType: 'api-request-error',
       errorData: error.message,
       url,
       method,
@@ -70,7 +70,7 @@ const processAxiosError = (axiosErrorObject) => {
   } else {
     error.customAttributes = {
       ...error.customAttributes,
-      type: 'api-request-config-error',
+      errorType: 'api-request-config-error',
       errorData: error.message,
       url,
       method,
