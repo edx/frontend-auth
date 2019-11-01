@@ -1,40 +1,150 @@
 import axios from 'axios';
-import { applyAxiosDefaults, applyAxiosInterceptors } from './axiosConfig';
-import applyAuthInterface from './authInterface';
+import {
+  csrfTokenProviderInterceptor,
+  jwtTokenProviderInterceptor,
+  processAxiosRequestErrorInterceptor,
+} from './axiosInterceptors';
+import { logFrontendAuthError } from './utils';
+import getJwtToken from './getJwtToken';
 
 let authenticatedAPIClient = null;
-let loggingService = null;
+let config = null;
 
-function configureLoggingService(incomingLoggingService) {
-  const { logError, logInfo } = incomingLoggingService;
-  if (typeof logError !== 'function') {
-    throw new Error('Frontend auth requires a logging service with a logError method');
-  }
-  if (typeof logInfo !== 'function') {
-    throw new Error('Frontend auth requires a logging service with a logInfo method');
-  }
-  loggingService = incomingLoggingService;
+function configure(incomingConfig) {
+  [
+    'appBaseUrl',
+    'authBaseUrl',
+    'loginUrl',
+    'logoutUrl',
+    // 'handleEmptyAccessToken', // optional
+    'loggingService',
+    'refreshAccessTokenEndpoint',
+    'accessTokenCookieName',
+    'csrfTokenApiPath',
+  ].forEach((key) => {
+    if (incomingConfig[key] === undefined) {
+      throw new Error(`Invalid configuration supplied to frontend auth. ${key} is required.`);
+    }
+  });
+
+  // validate the logging service
+  [
+    'logInfo',
+    'logError',
+  ].forEach((key) => {
+    if (incomingConfig.loggingService[key] === undefined) {
+      throw new Error(`Invalid configuration supplied to frontend auth. loggingService.${key} must be a function.`);
+    }
+  });
+
+  config = incomingConfig;
 }
 
-function getLoggingService() {
-  /* istanbul ignore next */
-  if (loggingService === null) {
-    throw new Error('Logging service is missing in frontend auth');
-  }
-  return loggingService;
+function getConfig(property) {
+  return config[property];
 }
+
+const redirectToLogin = (redirectUrl = config.appBaseUrl) => {
+  global.location.assign(`${config.loginUrl}?next=${encodeURIComponent(redirectUrl)}`);
+};
+
+const redirectToLogout = (redirectUrl = config.appBaseUrl) => {
+  global.location.assign(`${config.logoutUrl}?redirect_url=${encodeURIComponent(redirectUrl)}`);
+};
 
 function getAuthenticatedAPIClient(authConfig) {
   if (authenticatedAPIClient === null) {
-    authenticatedAPIClient = axios;
-    applyAuthInterface(authenticatedAPIClient, authConfig);
-    applyAxiosDefaults(authenticatedAPIClient);
-    applyAxiosInterceptors(authenticatedAPIClient);
-    configureLoggingService(authConfig.loggingService);
+    authenticatedAPIClient = axios.create();
+    configure(authConfig);
+
+
+    const handleJwtTokenRefreshError = (error) => {
+      // There were unexpected errors getting the access token.
+      logFrontendAuthError(error);
+      redirectToLogout();
+      throw error;
+    };
+
+    const handleEmptyAccessToken = () => {
+      if (config.handleEmptyAccessToken) {
+        handleEmptyAccessToken();
+      } else {
+        redirectToLogin();
+      }
+    };
+
+    // Apply Axios interceptors
+    // Axios runs the interceptors in reverse order from how they are listed.
+    // ensureValidJWTCookie needs to run first to ensure the user is authenticated
+    // before making the CSRF token request.
+    authenticatedAPIClient.interceptors.request.use(csrfTokenProviderInterceptor({
+      csrfTokenApiPath: config.csrfTokenApiPath,
+    }));
+
+    authenticatedAPIClient.interceptors.request.use(requestConfig => requestConfig, handleJwtTokenRefreshError);
+    authenticatedAPIClient.interceptors.request.use(jwtTokenProviderInterceptor({
+      handleEmptyToken: handleEmptyAccessToken,
+      tokenCookieName: config.accessTokenCookieName,
+      tokenRefreshEndpoint: config.refreshAccessTokenEndpoint,
+    }));
+
+    authenticatedAPIClient.interceptors.response.use(response => response, processAxiosRequestErrorInterceptor);
   }
 
   return authenticatedAPIClient;
 }
 
-export { getLoggingService, configureLoggingService };
-export default getAuthenticatedAPIClient;
+/**
+ * Ensures a user is authenticated, including redirecting to login when not authenticated.
+ *
+ * @param route: used to return user after login when not authenticated.
+ * @returns Promise that resolves to { authenticatedUser: {...}, decodedAccessToken: {...}}
+ */
+const ensureAuthenticatedUser = async (route) => {
+  let authenticatedUserAccessToken = null;
+
+  try {
+    const decodedAccessToken = await getJwtToken(config.accessTokenCookieName, config.refreshAccessTokenEndpoint);
+    if (decodedAccessToken !== null) {
+      authenticatedUserAccessToken = {
+        authenticatedUser: {
+          userId: decodedAccessToken.user_id,
+          username: decodedAccessToken.preferred_username,
+          roles: decodedAccessToken.roles ? decodedAccessToken.roles : [],
+          administrator: decodedAccessToken.administrator,
+        },
+        decodedAccessToken,
+      };
+    }
+  } catch (error) {
+    // There were unexpected errors getting the access token.
+    logFrontendAuthError(error);
+    redirectToLogout();
+    throw error;
+  }
+
+  if (authenticatedUserAccessToken === null) {
+    const isRedirectFromLoginPage = global.document.referrer &&
+      global.document.referrer.startsWith(config.loginUrl);
+
+    if (isRedirectFromLoginPage) {
+      const redirectLoopError = new Error('Redirect from login page. Rejecting to avoid infinite redirect loop.');
+      logFrontendAuthError(redirectLoopError);
+      throw redirectLoopError;
+    }
+
+    // The user is not authenticated, send them to the login page.
+    redirectToLogin(config.appBaseUrl + route);
+  }
+
+  return authenticatedUserAccessToken;
+};
+
+export {
+  configure,
+  getConfig,
+  getAuthenticatedAPIClient,
+  ensureAuthenticatedUser,
+  redirectToLogin,
+  redirectToLogout,
+};
