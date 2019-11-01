@@ -105,11 +105,13 @@ function expectLogin(redirectUrl = process.env.BASE_URL) {
     .toHaveBeenCalledWith(`${process.env.LOGIN_URL}?next=${encodedRedirectUrl}`);
 }
 
+// customAttributes is sent into expect.objectContaining
+// and can include other matchers in the object like expect.any(Number)
 const expectLogErrorToHaveBeenCalledWithMessage = (callParams, errorMessage, customAttributes) => {
   const loggedError = callParams[0];
   expect(loggedError.message).toEqual(errorMessage);
   if (customAttributes) {
-    expect(callParams[1]).toEqual(customAttributes);
+    expect(callParams[1]).toEqual(expect.objectContaining(customAttributes));
   }
 };
 
@@ -363,14 +365,14 @@ describe('Token refresh failures', () => {
           expectNoCallToCsrfTokenFetch();
           expectLogErrorToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[0],
-            '[frontend-auth] HTTP Client Error: 403 http://auth.example.com/api/refreshToken undefined',
-            expect.objectContaining({
-              method: 'post',
-              responseData: '',
-              status: 403,
-              errorType: 'api-response-error',
-              url: 'http://auth.example.com/api/refreshToken',
-            }),
+            '[frontend-auth] HTTP Client Error: 403 http://auth.example.com/api/refreshToken (empty response)',
+            {
+              httpErrorRequestMethod: 'post',
+              httpErrorResponseData: '(empty response)',
+              httpErrorStatus: 403,
+              httpErrorType: 'api-response-error',
+              httpErrorRequestUrl: 'http://auth.example.com/api/refreshToken',
+            },
           );
           expectLogout();
         });
@@ -393,12 +395,12 @@ describe('Token refresh failures', () => {
           expectLogErrorToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[0],
             '[frontend-auth] HTTP Client Error: timeout of 0ms exceeded post http://auth.example.com/api/refreshToken',
-            expect.objectContaining({
-              method: 'post',
-              errorData: 'timeout of 0ms exceeded',
-              errorType: 'api-request-config-error',
-              url: 'http://auth.example.com/api/refreshToken',
-            }),
+            {
+              httpErrorRequestMethod: 'post',
+              httpErrorMessage: 'timeout of 0ms exceeded',
+              httpErrorType: 'api-request-config-error',
+              httpErrorRequestUrl: 'http://auth.example.com/api/refreshToken',
+            },
           );
           expectLogout();
         });
@@ -425,9 +427,7 @@ describe('Token refresh failures', () => {
           expectLogErrorToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[0],
             '[frontend-auth] Access token is still null after successful refresh.',
-            expect.objectContaining({
-              axiosResponse: expect.any(Object),
-            }),
+            { axiosResponse: expect.any(Object) },
           );
           expectLogout();
         });
@@ -454,12 +454,12 @@ describe('Token refresh failures', () => {
           expectLogErrorToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[0],
             '[frontend-auth] Error decoding JWT token',
-            expect.objectContaining({ cookieValue: 'malformed jwt' }),
+            { cookieValue: 'malformed jwt' },
           );
           expectLogErrorToHaveBeenCalledWithMessage(
             mockLoggingService.logError.mock.calls[1],
             '[frontend-auth] Error decoding JWT token',
-            expect.objectContaining({ cookieValue: 'malformed jwt' }),
+            { cookieValue: 'malformed jwt' },
           );
           expectLogout();
         });
@@ -557,9 +557,7 @@ describe('AuthenticatedAPIClient auth interface', () => {
         expectLogErrorToHaveBeenCalledWithMessage(
           mockLoggingService.logError.mock.calls[0],
           '[frontend-auth] Access token is still null after successful refresh.',
-          expect.objectContaining({
-            axiosResponse: expect.any(Object),
-          }),
+          { axiosResponse: expect.any(Object) },
         );
       });
     });

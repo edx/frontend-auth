@@ -36,9 +36,11 @@ export default class AccessToken {
       const makeRefreshRequest = async () => {
         let axiosResponse;
         try {
-          axiosResponse = await httpClient
-            .post(this.refreshEndpoint)
-            .catch(processAxiosErrorAndThrow);
+          try {
+            axiosResponse = await httpClient.post(this.refreshEndpoint);
+          } catch (error) {
+            processAxiosErrorAndThrow(error);
+          }
         } catch (error) {
           const userIsUnauthenticated = error.response && error.response.status === 401;
           if (userIsUnauthenticated) {
@@ -70,10 +72,9 @@ export default class AccessToken {
         return decodedAccessToken;
       };
 
-      this.refreshRequestPromise = makeRefreshRequest()
-        .finally(() => {
-          delete this.refreshRequestPromise;
-        });
+      this.refreshRequestPromise = makeRefreshRequest().finally(() => {
+        delete this.refreshRequestPromise;
+      });
     }
 
     return this.refreshRequestPromise;

@@ -40,42 +40,45 @@ const logFrontendAuthError = (error) => {
 const processAxiosError = (axiosErrorObject) => {
   const error = Object.create(axiosErrorObject);
   const { request, response, config } = error;
-  const { url, method } = config;
+  const {
+    url: httpErrorRequestUrl,
+    method: httpErrorRequestMethod,
+  } = config;
   /* istanbul ignore else: difficult to enter the request-only error case in a unit test */
   if (response) {
-    const { status: requestStatus, data } = response;
-    const stringifiedData = JSON.stringify(data) || '';
+    const { status, data } = response;
+    const stringifiedData = JSON.stringify(data) || '(empty response)';
     const responseIsHTML = stringifiedData.includes('<!DOCTYPE html>');
     // Don't include data if it is just an HTML document, like a 500 error page.
     /* istanbul ignore next */
-    const responseData = responseIsHTML ? '<Response is HTML>' : stringifiedData;
+    const httpErrorResponseData = responseIsHTML ? '<Response is HTML>' : stringifiedData;
     error.customAttributes = {
       ...error.customAttributes,
-      errorType: 'api-response-error',
-      status: requestStatus,
-      responseData,
-      url,
-      method,
+      httpErrorType: 'api-response-error',
+      httpErrorStatus: status,
+      httpErrorResponseData,
+      httpErrorRequestUrl,
+      httpErrorRequestMethod,
     };
-    error.message = `HTTP Client Error: ${requestStatus} ${url} ${data}`;
+    error.message = `HTTP Client Error: ${status} ${httpErrorRequestUrl} ${httpErrorResponseData}`;
   } else if (request) {
     error.customAttributes = {
       ...error.customAttributes,
-      errorType: 'api-request-error',
-      errorData: error.message,
-      url,
-      method,
+      httpErrorType: 'api-request-error',
+      httpErrorMessage: error.message,
+      httpErrorRequestUrl,
+      httpErrorRequestMethod,
     };
-    error.message = `HTTP Client Error: ${error.message} ${method} ${url}`;
+    error.message = `HTTP Client Error: ${error.message} ${httpErrorRequestMethod} ${httpErrorRequestUrl}`;
   } else {
     error.customAttributes = {
       ...error.customAttributes,
-      errorType: 'api-request-config-error',
-      errorData: error.message,
-      url,
-      method,
+      httpErrorType: 'api-request-config-error',
+      httpErrorMessage: error.message,
+      httpErrorRequestUrl,
+      httpErrorRequestMethod,
     };
-    error.message = `HTTP Client Error: ${error.message} ${method} ${url}`;
+    error.message = `HTTP Client Error: ${error.message} ${httpErrorRequestMethod} ${httpErrorRequestUrl}`;
   }
 
   return error;
