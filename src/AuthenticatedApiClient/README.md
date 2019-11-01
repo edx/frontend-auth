@@ -28,7 +28,9 @@ below accept isPublic and isCsrfExempt in the request
 config options. Setting these to true will prevent this
 client from attempting to refresh the jwt access token
 or a csrf token respectively.</p>
-</dd>
+<pre><code> // A public endpoint (no jwt token refresh)
+ apiClient.get(&#39;/path/to/endpoint&#39;, { isPublic: true });</code></pre><pre><code> // A csrf exempt endpoint
+ apiClient.post(&#39;/path/to/endpoint&#39;, { data }, { isCsrfExempt: true });</code></pre></dd>
 <dt><a href="#UserAccessToken">UserAccessToken</a></dt>
 <dd></dd>
 </dl>
@@ -103,6 +105,16 @@ below accept isPublic and isCsrfExempt in the request
 config options. Setting these to true will prevent this
 client from attempting to refresh the jwt access token
 or a csrf token respectively.
+
+```
+ // A public endpoint (no jwt token refresh)
+ apiClient.get('/path/to/endpoint', { isPublic: true });
+```
+
+```
+ // A csrf exempt endpoint
+ apiClient.post('/path/to/endpoint', { data }, { isCsrfExempt: true });
+```
 
 **Kind**: global typedef  
 **Properties**

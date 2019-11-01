@@ -77,6 +77,16 @@ const handleUnexpectedAccessTokenRefreshError = (error) => {
  * client from attempting to refresh the jwt access token
  * or a csrf token respectively.
  * 
+ * ```
+ *  // A public endpoint (no jwt token refresh)
+ *  apiClient.get('/path/to/endpoint', { isPublic: true });
+ * ```
+ * 
+ * ```
+ *  // A csrf exempt endpoint
+ *  apiClient.post('/path/to/endpoint', { data }, { isCsrfExempt: true });
+ * ```
+ * 
  * @typedef HttpClient
  * @property {function} get
  * @property {function} head
