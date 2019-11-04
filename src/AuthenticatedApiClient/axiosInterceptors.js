@@ -47,8 +47,10 @@ const jwtTokenProviderInterceptor = (options) => {
       handleUnexpectedRefreshError(error);
     }
 
-    if (decodedJwtToken === null && handleEmptyToken !== undefined) {
-      handleEmptyToken();
+    if (decodedJwtToken === null) {
+      if (handleEmptyToken !== undefined) {
+        handleEmptyToken();
+      }
     } else {
       // Add the proper headers to tell the server to look for the jwt cookie
       /* eslint-disable no-param-reassign */
