@@ -10,7 +10,7 @@ import {
 import {
   getAuthenticatedApiClient,
   ensureAuthenticatedUser,
-  getAuthenticatedUserAccessToken,
+  getAuthenticatedUser,
   redirectToLogin,
   redirectToLogout,
 } from './AuthenticatedApiClient';
@@ -28,7 +28,7 @@ export {
   FETCH_USER_ACCOUNT_SUCCESS,
   getAuthenticatedApiClient,
   ensureAuthenticatedUser,
-  getAuthenticatedUserAccessToken,
+  getAuthenticatedUser,
   redirectToLogin,
   redirectToLogout,
   PrivateRoute,
