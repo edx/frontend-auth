@@ -160,9 +160,9 @@ function getAuthenticatedApiClient(authConfig) {
  */
 
 /**
- * Gets the authenticated user's access token. Null is
+ * Gets the authenticated user's access token. Resolves to null if the user is unauthenticated.
  *
- * @returns {Promise<UserAccessToken>} Resolves to null if the user is unauthenticated
+ * @returns {Promise<UserAccessToken>|Promise<null>} Resolves to the user's access token if they are logged in.
  */
 const getAuthenticatedUserAccessToken = async () => {
   let decodedAccessToken;

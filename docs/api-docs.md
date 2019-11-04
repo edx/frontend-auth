@@ -47,11 +47,11 @@ Gets the apiClient singleton which is an axios instance.
 
 <a name="getAuthenticatedUserAccessToken"></a>
 
-## getAuthenticatedUserAccessToken() ⇒ [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken)
-Gets the authenticated user's access token. Null is
+## getAuthenticatedUserAccessToken() ⇒ [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken) \| <code>Promise.&lt;null&gt;</code>
+Gets the authenticated user's access token. Resolves to null if the user is unauthenticated.
 
 **Kind**: global function  
-**Returns**: [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken) - Resolves to null if the user is unauthenticated  
+**Returns**: [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken) \| <code>Promise.&lt;null&gt;</code> - Resolves to the user's access token if they are logged in.  
 <a name="ensureAuthenticatedUser"></a>
 
 ## ensureAuthenticatedUser(route) ⇒ [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken)
