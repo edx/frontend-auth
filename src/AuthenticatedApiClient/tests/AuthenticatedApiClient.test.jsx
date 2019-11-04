@@ -19,7 +19,6 @@ const mockLoggingService = {
 
 const authConfig = {
   appBaseUrl: process.env.BASE_URL,
-  authBaseUrl: process.env.BASE_URL,
   accessTokenCookieName: process.env.ACCESS_TOKEN_COOKIE_NAME,
   csrfTokenApiPath: '/get-csrf-token',
   loginUrl: process.env.LOGIN_URL,
@@ -27,7 +26,6 @@ const authConfig = {
   refreshAccessTokenEndpoint: process.env.REFRESH_ACCESS_TOKEN_ENDPOINT,
   handleEmptyAccessToken: jest.fn(),
   loggingService: mockLoggingService,
-  userInfoCookieName: 'user-cookie',
 };
 
 // Set up mocks

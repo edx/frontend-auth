@@ -13,7 +13,6 @@ let config = null;
 function configure(incomingConfig) {
   [
     'appBaseUrl',
-    'authBaseUrl',
     'loginUrl',
     'logoutUrl',
     // 'handleEmptyAccessToken', // optional

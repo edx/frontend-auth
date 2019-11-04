@@ -1,16 +1,7 @@
-## 
+<a name="LoginRedirect"></a>
 
-* [redirectToLogin(redirectUrl)](#redirectToLogin)
-* [redirectToLogout(redirectUrl)](#redirectToLogout)
-* [getAuthenticatedApiClient(config)](#getAuthenticatedApiClient) ⇒ [<code>HttpClient</code>](#HttpClient)
-* [getAuthenticatedUserAccessToken()](#getAuthenticatedUserAccessToken) ⇒ [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken)
-* [ensureAuthenticatedUser(route)](#ensureAuthenticatedUser) ⇒ [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken)
-
-## 
-
-* [HttpClient](#HttpClient)
-* [UserAccessToken](#UserAccessToken)
-
+## LoginRedirect : <code>ReactComponent</code>
+**Kind**: global class  
 <a name="redirectToLogin"></a>
 
 ## redirectToLogin(redirectUrl)
@@ -72,6 +63,10 @@ Ensures a user is authenticated. It will redirect to login when not authenticate
 | --- | --- | --- |
 | route | <code>string</code> | to return user after login when not authenticated. |
 
+<a name="PrivateRoute"></a>
+
+## PrivateRoute() : <code>ReactComponent</code>
+**Kind**: global function  
 <a name="HttpClient"></a>
 
 ## HttpClient
