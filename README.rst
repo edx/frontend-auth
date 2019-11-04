@@ -80,7 +80,7 @@ When bootstrapping an application it may be useful to get the user's access toke
 Doc Generation
 --------------
 
-The docs at `docs/api-docs.md <docs/api.md>`__ are generated using JSDoc. Run `npm run docs` to regenerate them.
+The docs at `docs/api.md <docs/api.md>`__ are generated using JSDoc. Run `npm run docs` to regenerate them.
 
 .. |Build Status| image:: https://api.travis-ci.org/edx/frontend-auth.svg?branch=master
    :target: https://travis-ci.org/edx/frontend-auth
