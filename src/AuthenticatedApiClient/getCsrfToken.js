@@ -2,6 +2,9 @@ import axios from 'axios';
 import { getUrlParts, processAxiosErrorAndThrow } from './utils';
 
 const httpClient = axios.create();
+httpClient.defaults.withCredentials = true;
+httpClient.defaults.headers.common['USE-JWT-COOKIE'] = true;
+
 const csrfTokenCache = {};
 const csrfTokenRequestPromises = {};
 

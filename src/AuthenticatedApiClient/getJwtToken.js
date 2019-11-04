@@ -4,6 +4,8 @@ import axios from 'axios';
 import { logFrontendAuthError, processAxiosErrorAndThrow } from './utils';
 
 const httpClient = axios.create();
+httpClient.defaults.withCredentials = true;
+
 const cookies = new Cookies();
 
 const decodeJwtCookie = (cookieName) => {
