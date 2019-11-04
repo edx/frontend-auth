@@ -5,7 +5,7 @@ frontend-auth
 
 frontend-auth simplifies the process of making authenticated API requests to backend edX services by providing common authN/authZ client code that enables the login/logout flow and handles ensuring the presence of a valid `JWT cookie <https://github.com/edx/edx-platform/blob/master/openedx/core/djangoapps/oauth_dispatch/docs/decisions/0009-jwt-in-session-cookie.rst>`__.
 
-Read API docs here: `docs/api-docs.md <docs/api-docs.md>`__
+For detailed usage information `read the API doc <docs/api.md>`__
 
 Usage
 -----
@@ -80,7 +80,7 @@ When bootstrapping an application it may be useful to get the user's access toke
 Doc Generation
 --------------
 
-The docs at `docs/api-docs.md <docs/api-docs.md>`__ are generated using JSDoc. Run `npm run docs` to regenerate them.
+The docs at `docs/api-docs.md <docs/api.md>`__ are generated using JSDoc. Run `npm run docs` to regenerate them.
 
 .. |Build Status| image:: https://api.travis-ci.org/edx/frontend-auth.svg?branch=master
    :target: https://travis-ci.org/edx/frontend-auth

@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "NODE_ENV=production BABEL_ENV=production webpack --config webpack.config.js",
-    "docs": "jsdoc2md --global-index-format none ./src/**/* > ./docs/api-docs.md",
+    "docs": "jsdoc2md --global-index-format none ./src/**/* > ./docs/api.md",
     "gc": "commit",
     "commitmsg": "commitlint -e $GIT_PARAMS",
     "coveralls": "cat ./coverage/lcov.info | coveralls",
