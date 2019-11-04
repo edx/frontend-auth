@@ -152,7 +152,7 @@ function getAuthenticatedApiClient(authConfig) {
 }
 
 /**
- * @typedef UserAccessToken
+ * @typedef UserData
  * @property {string} userId
  * @property {string} username
  * @property {array} roles
@@ -162,7 +162,7 @@ function getAuthenticatedApiClient(authConfig) {
 /**
  * Gets the authenticated user's access token. Resolves to null if the user is unauthenticated.
  *
- * @returns {Promise<UserAccessToken>|Promise<null>} Resolves to the user's access token if they are logged in.
+ * @returns {Promise<UserData>|Promise<null>} Resolves to the user's access token if they are logged in.
  */
 const getAuthenticatedUser = async () => {
   let decodedAccessToken;
@@ -190,12 +190,12 @@ const getAuthenticatedUser = async () => {
  * Ensures a user is authenticated. It will redirect to login when not authenticated.
  *
  * @param {string} route to return user after login when not authenticated.
- * @returns {Promise<UserAccessToken>}
+ * @returns {Promise<UserData>}
  */
 const ensureAuthenticatedUser = async (route) => {
-  const authenticatedUserAccessToken = await getAuthenticatedUser();
+  const authenticatedUserData = await getAuthenticatedUser();
 
-  if (authenticatedUserAccessToken === null) {
+  if (authenticatedUserData === null) {
     const isRedirectFromLoginPage = global.document.referrer &&
       global.document.referrer.startsWith(config.loginUrl);
 
@@ -209,7 +209,7 @@ const ensureAuthenticatedUser = async (route) => {
     redirectToLogin(config.appBaseUrl + route);
   }
 
-  return authenticatedUserAccessToken;
+  return authenticatedUserData;
 };
 
 export {

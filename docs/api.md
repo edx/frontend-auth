@@ -45,16 +45,16 @@ Gets the apiClient singleton which is an axios instance.
 | [config.accessTokenCookieName] | <code>string</code> |  |
 | [config.csrfTokenApiPath] | <code>string</code> |  |
 
-<a name="getAuthenticatedUserAccessToken"></a>
+<a name="getAuthenticatedUser"></a>
 
-## getAuthenticatedUserAccessToken() ⇒ [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken) \| <code>Promise.&lt;null&gt;</code>
+## getAuthenticatedUser() ⇒ [<code>Promise.&lt;UserData&gt;</code>](#UserData) \| <code>Promise.&lt;null&gt;</code>
 Gets the authenticated user's access token. Resolves to null if the user is unauthenticated.
 
 **Kind**: global function  
-**Returns**: [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken) \| <code>Promise.&lt;null&gt;</code> - Resolves to the user's access token if they are logged in.  
+**Returns**: [<code>Promise.&lt;UserData&gt;</code>](#UserData) \| <code>Promise.&lt;null&gt;</code> - Resolves to the user's access token if they are logged in.  
 <a name="ensureAuthenticatedUser"></a>
 
-## ensureAuthenticatedUser(route) ⇒ [<code>Promise.&lt;UserAccessToken&gt;</code>](#UserAccessToken)
+## ensureAuthenticatedUser(route) ⇒ [<code>Promise.&lt;UserData&gt;</code>](#UserData)
 Ensures a user is authenticated. It will redirect to login when not authenticated.
 
 **Kind**: global function  
@@ -100,9 +100,9 @@ or a csrf token respectively.
 | put | <code>function</code> | (csrf protected) |
 | patch | <code>function</code> | (csrf protected) |
 
-<a name="UserAccessToken"></a>
+<a name="UserData"></a>
 
-## UserAccessToken
+## UserData
 **Kind**: global typedef  
 **Properties**
 
