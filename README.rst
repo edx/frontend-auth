@@ -37,13 +37,13 @@ To install frontend-auth into your project:
 
   apiClient.get('https://edx.org/api/v1/user).then((response) => {});
 
-When bootstrapping an application it may be useful to get the user's access token data from the jwt cookie. This can be done using `getAuthenticatedUserAccessToken` or `ensureAuthenticatedUser`.
+When bootstrapping an application it may be useful to get the user's access token data from the jwt cookie. This can be done using `getAuthenticatedUser` or `ensureAuthenticatedUser`.
 
 ::
 
-  import { getAuthenticatedUserAccessToken, ensureAuthenticatedUser } from '@edx/frontend-auth';
+  import { getAuthenticatedUser, ensureAuthenticatedUser } from '@edx/frontend-auth';
 
-  apiClient.getAuthenticatedUserAccessToken()
+  apiClient.getAuthenticatedUser()
     .then((authenticatedUserAccessToken) => {
       // If the authenticatedUserAccessToken is null it means the user is not logged in.
     })

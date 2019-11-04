@@ -7,7 +7,7 @@ import {
 import { logFrontendAuthError } from './utils';
 import getJwtToken from './getJwtToken';
 
-let authenticatedAPIClient = null;
+let authenticatedApiClient = null;
 let config = null;
 
 function configure(incomingConfig) {
@@ -112,9 +112,9 @@ const handleUnexpectedAccessTokenRefreshError = (error) => {
  * @returns {HttpClient} Singleton. A configured axios http client
  */
 function getAuthenticatedApiClient(authConfig) {
-  if (authenticatedAPIClient === null) {
+  if (authenticatedApiClient === null) {
     configure(authConfig);
-    authenticatedAPIClient = axios.create();
+    authenticatedApiClient = axios.create();
 
     // Axios interceptors
     const refreshAccessTokenInterceptor = jwtTokenProviderInterceptor({
@@ -137,18 +137,18 @@ function getAuthenticatedApiClient(authConfig) {
     // order from how they are listed. Since fetching csrf token does
     // not require jwt authentication, it doesn't matter which
     // happens first.
-    authenticatedAPIClient.interceptors.request.use(attachCsrfTokenInterceptor);
-    authenticatedAPIClient.interceptors.request.use(refreshAccessTokenInterceptor);
+    authenticatedApiClient.interceptors.request.use(attachCsrfTokenInterceptor);
+    authenticatedApiClient.interceptors.request.use(refreshAccessTokenInterceptor);
 
     // Response interceptor: moves axios response error data into
     // the error object at error.customAttributes
-    authenticatedAPIClient.interceptors.response.use(
+    authenticatedApiClient.interceptors.response.use(
       response => response,
       processAxiosRequestErrorInterceptor,
     );
   }
 
-  return authenticatedAPIClient;
+  return authenticatedApiClient;
 }
 
 /**
@@ -164,7 +164,7 @@ function getAuthenticatedApiClient(authConfig) {
  *
  * @returns {Promise<UserAccessToken>|Promise<null>} Resolves to the user's access token if they are logged in.
  */
-const getAuthenticatedUserAccessToken = async () => {
+const getAuthenticatedUser = async () => {
   let decodedAccessToken;
 
   try {
@@ -193,7 +193,7 @@ const getAuthenticatedUserAccessToken = async () => {
  * @returns {Promise<UserAccessToken>}
  */
 const ensureAuthenticatedUser = async (route) => {
-  const authenticatedUserAccessToken = await getAuthenticatedUserAccessToken();
+  const authenticatedUserAccessToken = await getAuthenticatedUser();
 
   if (authenticatedUserAccessToken === null) {
     const isRedirectFromLoginPage = global.document.referrer &&
@@ -217,7 +217,7 @@ export {
   getConfig,
   getAuthenticatedApiClient,
   ensureAuthenticatedUser,
-  getAuthenticatedUserAccessToken,
+  getAuthenticatedUser,
   redirectToLogin,
   redirectToLogout,
 };
