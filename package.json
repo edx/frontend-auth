@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "NODE_ENV=production BABEL_ENV=production webpack --config webpack.config.js",
-    "docs": "jsdoc2md src/AuthenticatedApiClient/index.js > src/AuthenticatedApiClient/README.md",
+    "docs": "jsdoc2md --global-index-format grouped src/AuthenticatedApiClient/index.js > src/AuthenticatedApiClient/README.md && md2rst src/AuthenticatedApiClient/README.md > src/AuthenticatedApiClient/README.rst",
     "gc": "commit",
     "commitmsg": "commitlint -e $GIT_PARAMS",
     "coveralls": "cat ./coverage/lcov.info | coveralls",
@@ -55,7 +55,9 @@
     "eslint-config-edx": "4.0.4",
     "husky": "0.14.3",
     "jest": "23.6.0",
+    "jsdoc-md": "^4.0.1",
     "jsdoc-to-markdown": "^5.0.2",
+    "markdown-to-restructuredtext": "^2.0.1",
     "prop-types": "15.6.2",
     "react": "16.9.0",
     "react-dom": "16.9.0",
