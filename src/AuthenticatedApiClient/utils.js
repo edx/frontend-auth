@@ -34,7 +34,7 @@ const getUrlParts = (url) => {
 const logFrontendAuthError = (error) => {
   const prefixedMessageError = Object.create(error);
   prefixedMessageError.message = `[frontend-auth] ${error.message}`;
-  getConfig('loggingService').logError(prefixedMessageError, prefixedMessageError.customAttributes);
+  getConfig().loggingService.logError(prefixedMessageError, prefixedMessageError.customAttributes);
 };
 
 const processAxiosError = (axiosErrorObject) => {

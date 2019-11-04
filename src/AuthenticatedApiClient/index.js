@@ -39,8 +39,8 @@ function configure(incomingConfig) {
   config = incomingConfig;
 }
 
-function getConfig(property) {
-  return config[property];
+function getConfig() {
+  return config;
 }
 
 /**

@@ -67,7 +67,7 @@ const processAxiosRequestErrorInterceptor = (error) => {
   const processedError = processAxiosError(error);
   const { httpErrorStatus } = processedError.customAttributes;
   if (httpErrorStatus === 401 || httpErrorStatus === 403) {
-    getConfig('loggingService').logInfo(processedError, processedError.customAttributes);
+    getConfig().loggingService.logInfo(processedError, processedError.customAttributes);
   }
   return Promise.reject(processedError);
 };
