@@ -63,7 +63,6 @@ const redirectToLogout = (redirectUrl = config.appBaseUrl) => {
 const handleUnexpectedAccessTokenRefreshError = (error) => {
   // There were unexpected errors getting the access token.
   logFrontendAuthError(error);
-  redirectToLogout();
   throw error;
 };
 

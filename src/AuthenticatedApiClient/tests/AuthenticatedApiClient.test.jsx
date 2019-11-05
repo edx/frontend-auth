@@ -400,7 +400,7 @@ describe('Token refresh failures', () => {
     });
 
     ['get', 'options', 'post', 'put', 'patch', 'delete'].forEach((method) => {
-      it(`${method.toUpperCase()}: throws an error and redirects`, () => {
+      it(`${method.toUpperCase()}: throws an error and calls logError`, () => {
         expect.hasAssertions();
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
@@ -416,7 +416,6 @@ describe('Token refresh failures', () => {
               httpErrorRequestUrl: 'http://auth.example.com/api/refreshToken',
             },
           );
-          expectLogout();
         });
       });
     });
@@ -429,7 +428,7 @@ describe('Token refresh failures', () => {
     });
 
     ['get', 'options', 'post', 'put', 'patch', 'delete'].forEach((method) => {
-      it(`${method.toUpperCase()}: throws an error and redirects`, () => {
+      it(`${method.toUpperCase()}: throws an error and calls logError`, () => {
         expect.hasAssertions();
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
@@ -444,7 +443,6 @@ describe('Token refresh failures', () => {
               httpErrorRequestUrl: 'http://auth.example.com/api/refreshToken',
             },
           );
-          expectLogout();
         });
       });
     });
@@ -461,7 +459,7 @@ describe('Token refresh failures', () => {
     });
 
     ['get', 'options', 'post', 'put', 'patch', 'delete'].forEach((method) => {
-      it(`${method.toUpperCase()}: throws an error and redirects`, () => {
+      it(`${method.toUpperCase()}: throws an error and calls logError`, () => {
         expect.hasAssertions();
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
@@ -471,7 +469,6 @@ describe('Token refresh failures', () => {
             '[frontend-auth] Access token is still null after successful refresh.',
             { axiosResponse: expect.any(Object) },
           );
-          expectLogout();
         });
       });
     });
@@ -488,7 +485,7 @@ describe('Token refresh failures', () => {
     });
 
     ['get', 'options', 'post', 'put', 'patch', 'delete'].forEach((method) => {
-      it(`${method.toUpperCase()}: throws an error and redirects`, () => {
+      it(`${method.toUpperCase()}: throws an error and calls logError`, () => {
         expect.hasAssertions();
         return client[method](mockApiEndpointPath).catch(() => {
           expectSingleCallToJwtTokenRefresh();
@@ -503,7 +500,6 @@ describe('Token refresh failures', () => {
             '[frontend-auth] Error decoding JWT token',
             { cookieValue: 'malformed jwt' },
           );
-          expectLogout();
         });
       });
     });
@@ -526,37 +522,59 @@ describe('User is logged out', () => {
   });
 });
 
-describe('JWT and CSRF exempt requests', () => {
+describe('JWT exempt requests using isPublic request configuration', () => {
   beforeEach(() => {
     setJwtCookieTo(null);
     setJwtTokenRefreshResponseTo(401, null);
   });
 
   ['get', 'options'].forEach((method) => {
-    it(`${method.toUpperCase()}: does not refresh the JWT or redirect`, () => {
+    it(`${method.toUpperCase()}: does not refresh the JWT`, () => {
       return client[method](mockApiEndpointPath, { isPublic: true }).then(() => {
         expectNoCallToJwtTokenRefresh();
         expectNoCallToCsrfTokenFetch();
-        expect(window.location.assign).not.toHaveBeenCalled();
       });
     });
   });
 
   ['post', 'put', 'patch'].forEach((method) => {
-    it(`${method.toUpperCase()}: does not refresh the JWT or redirect`, () => {
-      return client[method](mockApiEndpointPath, {/* payload data */}, { isPublic: true }).then(() => {
+    it(`${method.toUpperCase()}: does not refresh the JWT`, () => {
+      return client[method](mockApiEndpointPath, {}, { isPublic: true }).then(() => {
         expectNoCallToJwtTokenRefresh();
         expectSingleCallToCsrfTokenFetch();
-        expect(window.location.assign).not.toHaveBeenCalled();
       });
     });
   });
 
-  it('DELETE: does not refresh the JWT or redirect', () => {
+  it('DELETE: does not refresh the JWT', () => {
     return client.delete(mockApiEndpointPath, { isPublic: true }).then(() => {
       expectNoCallToJwtTokenRefresh();
       expectSingleCallToCsrfTokenFetch();
-      expect(window.location.assign).not.toHaveBeenCalled();
+    });
+  });
+});
+
+describe('CSRF exempt requests using isCsrfExempt request configuration', () => {
+  beforeEach(() => {
+    setJwtCookieTo(null);
+    setJwtTokenRefreshResponseTo(401, null);
+  });
+
+  ['get', 'options', 'delete'].forEach((method) => {
+    it(`${method.toUpperCase()}: does not fetch a Csrf token`, () => {
+      return client[method](mockApiEndpointPath, { isCsrfExempt: true }).then(() => {
+        expectSingleCallToJwtTokenRefresh();
+        expectNoCallToCsrfTokenFetch();
+      });
+    });
+  });
+
+  ['post', 'put', 'patch'].forEach((method) => {
+    it(`${method.toUpperCase()}: does not fetch a Csrf token`, () => {
+      return client[method](mockApiEndpointPath, {}, { isCsrfExempt: true }).then(() => {
+        expectSingleCallToJwtTokenRefresh();
+        expectNoCallToCsrfTokenFetch();
+      });
     });
   });
 });
@@ -645,14 +663,13 @@ describe('ensureAuthenticatedUser', () => {
     // This test case is unexpected, but occurring in production. See ARCH-948 for
     // more information on a similar situation that was happening prior to this
     // refactor in Oct 2019.
-    it('throws an error and redirects to logout if there was a problem getting the jwt cookie', () => {
+    it('throws an error and calls logError if there was a problem getting the jwt cookie', () => {
       setJwtCookieTo(null);
       // The JWT cookie is null despite a 200 response.
       setJwtTokenRefreshResponseTo(200, null);
       expect.hasAssertions();
       return ensureAuthenticatedUser().catch(() => {
         expectSingleCallToJwtTokenRefresh();
-        expectLogout();
         expectLogFunctionToHaveBeenCalledWithMessage(
           mockLoggingService.logError.mock.calls[0],
           '[frontend-auth] Access token is still null after successful refresh.',
