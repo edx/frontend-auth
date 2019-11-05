@@ -625,14 +625,14 @@ describe('Info logging for authorization errors from api requests with a valid t
 });
 
 describe('Redirect helper functions', () => {
-  it('can go to login with different redirect url parameters', () => {
+  it('can redirect to login with different redirect url parameters', () => {
     redirectToLogin('http://edx.org/dashboard');
     expectLogin('http://edx.org/dashboard');
     redirectToLogin();
     expectLogin(process.env.BASE_URL);
   });
 
-  it('can go to logout with different redirect url parameters', () => {
+  it('can redirect to logout with different redirect url parameters', () => {
     redirectToLogout('http://edx.org/');
     expectLogout('http://edx.org/');
     redirectToLogout();
