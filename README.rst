@@ -45,7 +45,7 @@ When bootstrapping an application it may be useful to get the user's access toke
       // If the authenticatedUserAccessToken is null it means the user is not logged in.
     })
     .catch(e => {
-      // There was some unexpected problem
+      // There was an unexpected problem
     });
 
   apiClient.ensureAuthenticatedUser(window.location.pathname)
