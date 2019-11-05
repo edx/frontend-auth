@@ -8,7 +8,7 @@ script:
   - npm run build
   - npm run is-es5
 after_success:
-  - npm run travis-deploy-once "npm run semantic-release"
+  - npx semantic-release
   - npm run coveralls
 env:
   global:
