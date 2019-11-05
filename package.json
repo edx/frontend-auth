@@ -62,9 +62,7 @@
     "axios": "^0.18.1",
     "camelcase-keys": "^5.0.0",
     "jwt-decode": "^2.2.0",
-    "pubsub-js": "^1.7.0",
     "snakecase-keys": "^2.1.0",
-    "universal-cookie": "^3.0.4",
-    "url-parse": "^1.4.3"
+    "universal-cookie": "^3.0.4"
   }
 }
