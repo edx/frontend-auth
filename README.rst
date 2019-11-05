@@ -16,7 +16,7 @@ To install frontend-auth into your project:
 
    npm i --save @edx/frontend-auth
 
-``frontend-auth`` uses `axios interceptors <https://github.com/axios/axios#interceptors>`__ to ensure that a valid JWT cookie exists in your user’s browser before making any API requests. If a valid JWT cookie does not exist, it will attempt to obtain a new valid JWT cookie using a refresh token if one exists in cookies. Instead of referencing axios directly, you should obtain an http client by calling the ``getAuthenticatedApiClient`` function provided by ``frontend-auth``:
+``frontend-auth`` uses `axios interceptors <https://github.com/axios/axios#interceptors>`__ to ensure that a valid JWT cookie exists in your user’s browser before making any API requests. If a valid JWT cookie does not exist, it will attempt to refresh the JWT cookie. Instead of referencing axios directly, you should obtain an http client by calling the ``getAuthenticatedApiClient`` function provided by ``frontend-auth``:
 
 ::
 
@@ -50,11 +50,11 @@ When bootstrapping an application it may be useful to get the user's access toke
 
   apiClient.ensureAuthenticatedUser(window.location.pathname)
     .then((authenticatedUserAccessToken) => {
-      // If the authenticatedUserAccessToken is null it means the user is not logged in.
-      // If they are not they will be redirected to login.
+      // If the authenticatedUserAccessToken is null it means the user is not logged in and
+      // will be redirected to login.
     })
     .catch(e => {
-      // There was some unexpected problem
+      // There was an unexpected problem
     });
 
 ``frontend-auth`` provides a ``PrivateRoute`` component which can be used along with ``react-router`` to require authentication for specific routes in your app. Here is an example of defining a route that requires authentication:
