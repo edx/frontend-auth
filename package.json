@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "fedx-scripts babel src --out-dir dist --delete-dir-on-start --copy-files --source-maps --ignore src/**/*.test.jsx",
-    "docs": "jsdoc2md --global-index-format none ./src/**/* > ./docs/api.md",
+    "docs": "npx jsdoc2md --global-index-format none ./src/**/* > ./docs/api.md",
     "gc": "commit",
     "commitmsg": "commitlint -e $GIT_PARAMS",
     "coveralls": "cat ./coverage/lcov.info | coveralls",
@@ -40,7 +40,6 @@
     "enzyme": "3.8.0",
     "enzyme-adapter-react-16": "1.8.0",
     "husky": "0.14.3",
-    "jsdoc-to-markdown": "^5.0.2",
     "prop-types": "15.6.2",
     "react": "16.9.0",
     "react-dom": "16.9.0",
