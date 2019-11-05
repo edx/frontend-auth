@@ -5,12 +5,12 @@ import getCsrfToken from './getCsrfToken';
 import getJwtToken from './getJwtToken';
 
 const csrfTokenProviderInterceptor = (options) => {
-  const { csrfTokenApiPath, isExempt } = options;
+  const { csrfTokenApiPath, shouldSkip } = options;
 
   // Creating the interceptor inside this closure to
   // maintain reference to the options supplied.
   const interceptor = async (axiosRequestConfig) => {
-    if (isExempt(axiosRequestConfig)) {
+    if (shouldSkip(axiosRequestConfig)) {
       return axiosRequestConfig;
     }
     const { url } = axiosRequestConfig;
@@ -26,39 +26,26 @@ const csrfTokenProviderInterceptor = (options) => {
 
 const jwtTokenProviderInterceptor = (options) => {
   const {
-    handleEmptyToken,
     tokenCookieName,
     tokenRefreshEndpoint,
     handleUnexpectedRefreshError,
-    isExempt,
+    shouldSkip,
   } = options;
 
   // Creating the interceptor inside this closure to
   // maintain reference to the options supplied.
   const interceptor = async (axiosRequestConfig) => {
-    if (isExempt(axiosRequestConfig)) {
+    if (shouldSkip(axiosRequestConfig)) {
       return axiosRequestConfig;
     }
-
-    let decodedJwtToken;
     try {
-      decodedJwtToken = await getJwtToken(tokenCookieName, tokenRefreshEndpoint);
+      await getJwtToken(tokenCookieName, tokenRefreshEndpoint);
     } catch (error) {
       handleUnexpectedRefreshError(error);
     }
-
-    if (decodedJwtToken === null) {
-      if (handleEmptyToken !== undefined) {
-        handleEmptyToken();
-      }
-    } else {
-      // Add the proper headers to tell the server to look for the jwt cookie
-      /* eslint-disable no-param-reassign */
-      axiosRequestConfig.withCredentials = true;
-      axiosRequestConfig.headers.common['USE-JWT-COOKIE'] = true;
-      /* eslint-enable no-param-reassign */
-    }
-
+    // Add the proper headers to tell the server to look for the jwt cookie
+    // eslint-disable-next-line no-param-reassign
+    axiosRequestConfig.headers.common['USE-JWT-COOKIE'] = true;
     return axiosRequestConfig;
   };
 

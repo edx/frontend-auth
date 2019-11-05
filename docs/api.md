@@ -39,7 +39,6 @@ Gets the apiClient singleton which is an axios instance.
 | [config.authBaseUrl] | <code>string</code> |  |
 | [config.loginUrl] | <code>string</code> |  |
 | [config.logoutUrl] | <code>string</code> |  |
-| [config.handleEmptyAccessToken] | <code>function</code> | (optional) |
 | [config.loggingService] | <code>object</code> | requires logError and logInfo methods |
 | [config.refreshAccessTokenEndpoint] | <code>string</code> |  |
 | [config.accessTokenCookieName] | <code>string</code> |  |

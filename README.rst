@@ -30,9 +30,6 @@ To install frontend-auth into your project:
     accessTokenCookieName: process.env.ACCESS_TOKEN_COOKIE_NAME,
     csrfTokenApiPath: process.env.CSRF_TOKEN_API_PATH,
     loggingService: configuredLoggingService, // see @edx/frontend-logging
-    // handleEmptyAccessToken is an optional callback when a
-    // jwt refresh fails because the user is logged out
-    // handleEmptyAccessToken: () => {},
   });
 
   apiClient.get('https://edx.org/api/v1/user).then((response) => {});
