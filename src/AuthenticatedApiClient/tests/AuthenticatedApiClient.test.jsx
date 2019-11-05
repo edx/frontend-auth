@@ -24,7 +24,6 @@ const authConfig = {
   loginUrl: process.env.LOGIN_URL,
   logoutUrl: process.env.LOGOUT_URL,
   refreshAccessTokenEndpoint: process.env.REFRESH_ACCESS_TOKEN_ENDPOINT,
-  handleEmptyAccessToken: jest.fn(),
   loggingService: mockLoggingService,
 };
 
@@ -179,7 +178,6 @@ beforeEach(() => {
   csrfTokensAxiosMock
     .onGet(process.env.CSRF_TOKEN_REFRESH)
     .reply(200, { csrfToken: mockCsrfToken });
-  authConfig.handleEmptyAccessToken.mockReset();
 });
 
 describe('getAuthenticatedApiClient', () => {
@@ -522,7 +520,6 @@ describe('User is logged out', () => {
     it(`${method.toUpperCase()}: does not redirect to login`, () => {
       return client[method](mockApiEndpointPath).then(() => {
         expectSingleCallToJwtTokenRefresh();
-        expect(authConfig.handleEmptyAccessToken).toHaveBeenCalled();
         expect(window.location.assign).not.toHaveBeenCalled();
       });
     });

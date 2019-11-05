@@ -11,7 +11,6 @@ configure({
   loginUrl: process.env.LOGIN_URL,
   logoutUrl: process.env.LOGOUT_URL,
   refreshAccessTokenEndpoint: process.env.REFRESH_ACCESS_TOKEN_ENDPOINT,
-  handleEmptyAccessToken: jest.fn(),
   loggingService: {
     logError: jest.fn(),
     logInfo: jest.fn(),
