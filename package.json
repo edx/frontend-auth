@@ -59,7 +59,7 @@
     "axios": "^0.18.1",
     "camelcase-keys": "^5.0.0",
     "jwt-decode": "^2.2.0",
-    "snakecase-keys": "^2.1.0",
+    "snakecase-keys": "^3.0.0",
     "universal-cookie": "^3.0.4"
   }
 }
