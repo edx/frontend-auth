@@ -1,7 +1,7 @@
 import axios from 'axios';
-import camelcaseKeys from 'camelcase-keys';
 import MockAdapter from 'axios-mock-adapter';
 
+import { camelCaseObject } from '../dataUtils';
 import UserAccountApiService from './UserAccountApiService';
 
 const axiosMock = new MockAdapter(axios);
@@ -24,7 +24,7 @@ describe('UserAccountApiService.getUserAccount', () => {
     expect.assertions(1);
     return userAccountApiService.getUserAccount(username)
       .then((result) => {
-        expect(result).toEqual(camelcaseKeys(userAccount, { deep: true }));
+        expect(result).toEqual(camelCaseObject(userAccount, { deep: true }));
       });
   });
 
@@ -46,9 +46,9 @@ describe('UserAccountApiService.saveUserAccount', () => {
 
     expect.assertions(1);
     return userAccountApiService
-      .saveUserAccount(username, camelcaseKeys(userAccount, { deep: true }))
+      .saveUserAccount(username, camelCaseObject(userAccount, { deep: true }))
       .then((result) => {
-        expect(result).toEqual(camelcaseKeys(userAccount, { deep: true }));
+        expect(result).toEqual(camelCaseObject(userAccount, { deep: true }));
       });
   });
 
@@ -57,7 +57,7 @@ describe('UserAccountApiService.saveUserAccount', () => {
 
     expect.assertions(1);
     return userAccountApiService
-      .saveUserAccount(username, camelcaseKeys(userAccount, { deep: true }))
+      .saveUserAccount(username, camelCaseObject(userAccount, { deep: true }))
       .catch((error) => {
         expect(error).toEqual(new Error('Network Error'));
       });

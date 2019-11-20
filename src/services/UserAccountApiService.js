@@ -1,5 +1,4 @@
-import camelcaseKeys from 'camelcase-keys';
-import snakecaseKeys from 'snakecase-keys';
+import { camelCaseObject, snakeCaseObject } from '../dataUtils';
 
 class UserAccountApiService {
   constructor(apiClient, baseUrl) {
@@ -11,7 +10,7 @@ class UserAccountApiService {
     return new Promise((resolve, reject) => {
       this.apiClient.get(`${this.apiBaseUrl}/${username}`)
         .then((response) => {
-          resolve(camelcaseKeys(response.data, { deep: true }));
+          resolve(camelCaseObject(response.data));
         })
         .catch((error) => {
           reject(error);
@@ -23,7 +22,7 @@ class UserAccountApiService {
     return new Promise((resolve, reject) => {
       this.apiClient.patch(
         `${this.apiBaseUrl}/${username}`,
-        snakecaseKeys(data, { deep: true }),
+        snakeCaseObject(data, { deep: true }),
         {
           headers: {
             'Content-Type': 'application/merge-patch+json',
@@ -31,7 +30,7 @@ class UserAccountApiService {
         },
       )
         .then((response) => {
-          resolve(camelcaseKeys(response.data, { deep: true }));
+          resolve(camelCaseObject(response.data));
         })
         .catch((error) => {
           reject(error);
