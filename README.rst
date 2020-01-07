@@ -1,3 +1,10 @@
+⛔️ DEPRECATION WARNING 
+======================
+
+**This library is deprecated and will be archived.** 
+
+Its functionality has been moved into `frontend-platform <https://github.com/edx/frontend-platform>`__, which should be used for frontend development going forward.  Please contact `@edx/fedx-team <https://github.com/orgs/edx/teams/fedx-team>`__ with any questions.
+
 frontend-auth
 =============
 
