@@ -33,7 +33,7 @@
     "@commitlint/cli": "8.1.0",
     "@commitlint/config-angular": "8.1.0",
     "@edx/frontend-build": "2.0.1",
-    "axios-mock-adapter": "1.16.0",
+    "axios-mock-adapter": "1.19.0",
     "babel-plugin-rewire": "1.2.0",
     "codecov": "3.6.1",
     "enzyme": "3.8.0",
