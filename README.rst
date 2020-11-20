@@ -1,5 +1,5 @@
 ⛔️ DEPRECATION WARNING 
-======================
+=======================
 
 **This library is deprecated and will be archived.** 
 
@@ -86,8 +86,8 @@ Doc Generation
 
 The docs at `docs/api.md <docs/api.md>`__ are generated using JSDoc. Run `npm run docs` to regenerate them.
 
-.. |Build Status| image:: https://api.travis-ci.org/edx/frontend-auth.svg?branch=master
-   :target: https://travis-ci.org/edx/frontend-auth
+.. |Build Status| image:: https://api.travis-ci.com/edx/frontend-auth.svg?branch=master
+   :target: https://travis-ci.com/edx/frontend-auth
 .. |Coveralls| image:: https://img.shields.io/coveralls/edx/frontend-auth.svg?branch=master
    :target: https://coveralls.io/github/edx/frontend-auth
 .. |npm_version| image:: https://img.shields.io/npm/v/@edx/frontend-auth.svg
