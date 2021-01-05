@@ -56,7 +56,7 @@
     "redux": "^4.0.0"
   },
   "dependencies": {
-    "axios": "0.18.1",
+    "axios": "0.21.0",
     "jwt-decode": "2.2.0",
     "lodash.camelcase": "4.3.0",
     "lodash.snakecase": "4.1.1",
