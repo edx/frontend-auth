@@ -30,8 +30,8 @@
   },
   "homepage": "https://github.com/edx/frontend-auth#readme",
   "devDependencies": {
-    "@commitlint/cli": "8.1.0",
-    "@commitlint/config-angular": "8.1.0",
+    "@commitlint/cli": "8.3.5",
+    "@commitlint/config-angular": "8.3.4",
     "@edx/frontend-build": "2.0.1",
     "axios-mock-adapter": "1.16.0",
     "babel-plugin-rewire": "1.2.0",
